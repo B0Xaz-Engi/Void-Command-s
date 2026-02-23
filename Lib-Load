@@ -22,7 +22,6 @@ local ChangeTheme = false
 do
     function Utility:Log(Type, Message)
         Type = Type:lower()
-
         if Type == 'error' then
             error('[ V0id ] Error: ' .. Message)
         elseif Type == 'log' then
@@ -36,7 +35,6 @@ do
         local Success = pcall(function()
             return Instance[Property]
         end)
-        
         return Success and not Instance:FindFirstChild(Property)
     end
 
@@ -49,11 +47,11 @@ do
         local Object = Instance.new(InstanceName)
         local Properties = Properties or {}
         local Children = Children or {}
-        
+
         for Index, Property in next, Properties do
             Object[Index] = Property
         end
-    
+
         for _, Child in next, Children do
             Child.Parent = Object
         end
@@ -63,26 +61,21 @@ do
 
     function Utility:Lighten(Color)
         local H, S, V = Color:ToHSV()
-
         V = math.clamp(V + 0.03, 0, 1)
-
         return Color3.fromHSV(H, S, V)
     end
 
     function Utility:Darken(Color)
         local H, S, V = Color:ToHSV()
-
         V = math.clamp(V - 0.35, 0, 1)
-
         return Color3.fromHSV(H, S, V)
     end
 
     function Utility:EnableDragging(Frame, Parent)
         local DraggingInput, StartPosition
         local DragStart = Vector3.new(0,0,0)
-        
         local Main = CoreGui:FindFirstChild('V0id Command UI Library').Main
-        
+
         local function Update(Input)
             local Delta = Input.Position - DragStart
             local Camera = Workspace.CurrentCamera
@@ -98,13 +91,13 @@ do
                 Utility:Tween(Parent, {Position = Position}, 0.25)
             end
         end
-        
+
         Frame.InputBegan:Connect(function(Input)
             if Input.UserInputType == Enum.UserInputType.MouseButton1 then
                 Dragging = true
                 DragStart = Input.Position
                 StartPosition = Parent.Position
-    
+
                 Input.Changed:Connect(function()
                     if Input.UserInputState == Enum.UserInputState.End then
                         Dragging = false
@@ -128,7 +121,6 @@ do
 
     function Utility:StringToKeyCode(String)
         local Byte = string.byte(String)
-
         for _, KeyCode in next, Enum.KeyCode:GetEnumItems() do
             if KeyCode.Value == Byte then
                 return KeyCode
@@ -147,68 +139,23 @@ do
     function Utility:GetProperty(Level, Name, Properties)
         local AllProperties = {
             Window = {
-                Name = {
-                    'Name',
-                    'NAME',
-                    'name'
-                },
-                IntroText = {
-                    'IntroText',
-                    'INTROTEXT',
-                    'introText',
-                    'introtext',
-                    'Introtext'
-                },
-                IntroIcon = {
-                    'IntroIcon',
-                    'INTROICON',
-                    'introIcon',
-                    'introicon',
-                    'Introicon'
-                },
-                IntroBlur = {
-                    'IntroBlur',
-                    'Introblur',
-                    'INTROBLUR',
-                    'introBlur',
-                    'introblur',
-                },
+                Name = {'Name', 'NAME', 'name'},
+                IntroText = {'IntroText', 'INTROTEXT', 'introText', 'introtext', 'Introtext'},
+                IntroIcon = {'IntroIcon', 'INTROICON', 'introIcon', 'introicon', 'Introicon'},
+                IntroBlur = {'IntroBlur', 'Introblur', 'INTROBLUR', 'introBlur', 'introblur'},
                 IntroBlurIntensity = {
-                    'introblurintensity',
-                    'Introblurintensity',
-                    'INTROBLURINTENSITY',
-                    'introBlurintensity',
-                    'IntroBlurintensity',
-                    'introblurIntensity',
-                    'IntroblurIntensity',
-                    'introBlurIntensity',
-                    'IntroBlurIntensity'
+                    'introblurintensity', 'Introblurintensity', 'INTROBLURINTENSITY',
+                    'introBlurintensity', 'IntroBlurintensity', 'introblurIntensity',
+                    'IntroblurIntensity', 'introBlurIntensity', 'IntroBlurIntensity'
                 },
-                Theme = {
-                    'Theme',
-                    'THEME',
-                    'theme'
-                },
-                Position = {
-                    'Position',
-                    'position',
-                    'POSITION'
-                },
-                Draggable = {
-                    'Draggable',
-                    'DRAGGABLE',
-                    'draggable'
-                },
-                Prefix = {
-                    'Prefix',
-                    'PREFIX',
-                    'prefix'
-                }
+                Theme = {'Theme', 'THEME', 'theme'},
+                Position = {'Position', 'position', 'POSITION'},
+                Draggable = {'Draggable', 'DRAGGABLE', 'draggable'},
+                Prefix = {'Prefix', 'PREFIX', 'prefix'}
             }
         }
 
         local PossibleNames = AllProperties[Level][Name]
-
         for _, Name in next, PossibleNames do
             if Properties[Name] then
                 return Properties[Name]
@@ -218,7 +165,6 @@ do
 
     function Utility:Destroy()
         BreakAllLoops = true
-
         for _, UI in next, CoreGui:GetChildren() do
             if UI.Name == 'V0id Command UI Library' then
                 for _, Item in next, UI.Main:GetChildren() do
@@ -226,12 +172,10 @@ do
                         Item:Destroy()
                     end
                 end
-    
+
                 Utility:Tween(UI.Main, {Size = UDim2.new(0, 500, 0, 0)}, 0.25)
                 Utility:Tween(UI.ToolTip, {BackgroundTransparency = 1}, 0.25)
-
                 task.wait(0.25)
-
                 UI:Destroy()
             end
         end
@@ -326,12 +270,13 @@ Library.Themes = {
         SecondaryColor = Color3.fromRGB(50, 50, 50)
     }
 }
+
 Library.Prefix = Utility:StringToKeyCode(';')
 Library.Theme = nil
 
--- // CreateWindow - Name, IntroText, IntroIcon, IntroBlur, IntroBlurIntensity, Theme, Position, Draggable, Prefix
+-- // CreateWindow function
 function Library:CreateWindow(Properties)
-    -- // Properties
+    -- Properties
     local Name = Utility:GetProperty('Window', 'Name', Properties) or 'V0id Command UI Library'
     local IntroText = Utility:GetProperty('Window', 'IntroText', Properties) or 'V0id Command UI Library'
     local IntroIcon = Utility:GetProperty('Window', 'IntroIcon', Properties) or 'rbxassetid://10618644218'
@@ -342,19 +287,19 @@ function Library:CreateWindow(Properties)
     local Draggable = Utility:GetProperty('Window', 'Draggable', Properties) or false
     local Prefix = Utility:StringToKeyCode(Utility:GetProperty('Window', 'Prefix', Properties)) or Utility:StringToKeyCode(';')
 
-    -- // Set Library Properties
+    -- Set Library properties
     Library.Prefix = Prefix
     Library.Theme = Theme
 
-    -- // Custom Theme
+    -- Custom theme support
     if type(Theme) == 'table' then
         Library.Themes['custom'] = Theme
     end
 
-    -- // Destroy Old UI
+    -- Destroy any existing UI
     Utility:Destroy()
 
-    -- // Create Elements
+    -- Create main ScreenGui and Frame
     local Container = Utility:Create('ScreenGui', {
         Parent = CoreGui,
         Name = 'V0id Command UI Library | .gg/puxxCphTnK',
@@ -412,72 +357,55 @@ function Library:CreateWindow(Properties)
         }),
     })
 
-    -- // Intro Blur
-
-    -- // Variables
     local Main = Container.Main
     local MainStroke = Main.MainStroke
-    
-    -- // Dragging
+
     if Draggable then
         Utility:EnableDragging(Main, Main)
     end
 
-    -- // Intro
     MainStroke.Thickness = 0
-    
-    if IntroBlur == true then
+
+    if IntroBlur then
         Utility:Create('BlurEffect', {
-            Name = 'VisualIntroBlur',
+            Name = 'V0idIntroBlur',
             Parent = Lighting,
             Size = 0
         })
-
-        local Blur = Lighting.VisualIntroBlur
-
+        local Blur = Lighting.V0idIntroBlur
         Utility:Tween(Blur, {Size = IntroBlurIntensity}, 1)
-
         task.wait(1)
     end
 
     Utility:Tween(Main, {BackgroundTransparency = 1}, 0)
-
     Utility:Tween(Main, {Size = UDim2.new(0, 1000, 0, 500)}, 0.25)
-    
     task.wait(0.5)
 
-    Utility:Tween(Main['IntroText'], {TextTransparency = 0}, 0.25)
-
+    Utility:Tween(Main.IntroText, {TextTransparency = 0}, 0.25)
+    task.wait(0.5)
+    Utility:Tween(Main.IntroText, {TextTransparency = 1}, 0.25)
+    task.wait(0.5)
+    Utility:Tween(Main.IntroImage, {ImageTransparency = 1}, 0.25)
     task.wait(0.5)
 
-    Utility:Tween(Main['IntroText'], {TextTransparency = 1}, 0.25)
-
-    task.wait(0.5)
-
-    Utility:Tween(Main['IntroImage'], {ImageTransparency = 1}, 0.25)
-
-    task.wait(0.5)
-
-    if IntroBlur == true then
-        Utility:Tween(Lighting.VisualIntroBlur, {Size = 0}, 1)
-
+    if IntroBlur then
+        Utility:Tween(Lighting.V0idIntroBlur, {Size = 0}, 1)
         task.wait(1)
     end
 
-    Main['IntroText']:Destroy()
-    Main['IntroImage']:Destroy()
+    Main.IntroText:Destroy()
+    Main.IntroImage:Destroy()
 
-    if IntroBlur == true then
-        Lighting.VisualIntroBlur:Destroy()
+    if IntroBlur then
+        Lighting.V0idIntroBlur:Destroy()
     end
 
     Utility:Tween(Main, {Size = UDim2.new(0, 500, 0, 65)}, 0.25)
     Utility:Tween(Main, {BackgroundTransparency = 0}, 0.25)
     MainStroke.Thickness = 1
-
     task.wait(0.5)
 
-    -- // Position
+    -- Position logic
     if Position == 'top' then
         Main.AnchorPoint = Vector2.new(0.5, 0)
         Utility:Tween(Main, {Position = UDim2.new(0.5, 0, 0, -72)}, 0.25)
@@ -498,321 +426,117 @@ function Library:CreateWindow(Properties)
         Utility:Tween(Main, {Position = UDim2.new(1, 0, 1, 36)}, 0.25)
     end
 
-    -- // Fillers And Lines
+    -- Fillers and accent lines
     if string.find(Position, 'top') then
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.BackgroundColor,
-            BorderSizePixel = 0,
-            Name = 'Filler1',
-            BackgroundTransparency = 0,
-            Position = UDim2.new(0, 0, 0, 0),
-            Size = UDim2.new(0, 5, 0, 5)
-        })
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.BackgroundColor,
-            BorderSizePixel = 0,
-            Name = 'Filler2',
-            BackgroundTransparency = 0,
-            Position = UDim2.new(0, 495, 0, 0),
-            Size = UDim2.new(0, 5, 0, 5)
-        })
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.AccentColor,
-            BorderSizePixel = 0,
-            Name = 'Line1',
-            BackgroundTransparency = 0,
-            Position = UDim2.new(0, -1, 0, 0),
-            Size = UDim2.new(0, 1, 0, 10)
-        })
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.AccentColor,
-            BorderSizePixel = 0,
-            Name = 'Line2',
-            BackgroundTransparency = 0,
-            Position = UDim2.new(0, 500, 0, 0),
-            Size = UDim2.new(0, 1, 0, 10)
-        })
+        Utility:Create('Frame', {Parent = Main, BackgroundColor3 = Theme.BackgroundColor, BorderSizePixel = 0, Name = 'Filler1', Position = UDim2.new(0,0,0,0), Size = UDim2.new(0,5,0,5)})
+        Utility:Create('Frame', {Parent = Main, BackgroundColor3 = Theme.BackgroundColor, BorderSizePixel = 0, Name = 'Filler2', Position = UDim2.new(0,495,0,0), Size = UDim2.new(0,5,0,5)})
+        Utility:Create('Frame', {Parent = Main, BackgroundColor3 = Theme.AccentColor, BorderSizePixel = 0, Name = 'Line1', Position = UDim2.new(0,-1,0,0), Size = UDim2.new(0,1,0,10)})
+        Utility:Create('Frame', {Parent = Main, BackgroundColor3 = Theme.AccentColor, BorderSizePixel = 0, Name = 'Line2', Position = UDim2.new(0,500,0,0), Size = UDim2.new(0,1,0,10)})
     else
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.BackgroundColor,
-            BorderSizePixel = 0,
-            BackgroundTransparency = 0,
-            Name = 'Filler1',
-            Position = UDim2.new(0, 0, 0, 60),
-            Size = UDim2.new(0, 5, 0, 5)
-        })
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.BackgroundColor,
-            BorderSizePixel = 0,
-            BackgroundTransparency = 0,
-            Name = 'Filler2',
-            Position = UDim2.new(0, 495, 0, 60),
-            Size = UDim2.new(0, 5, 0, 5)
-        })
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.AccentColor,
-            BorderSizePixel = 0,
-            BackgroundTransparency = 0,
-            Name = 'Line1',
-            Position = UDim2.new(0, -1, 0, 60),
-            Size = UDim2.new(0, 1, 0, 10)
-        })
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.AccentColor,
-            BorderSizePixel = 0,
-            BackgroundTransparency = 0,
-            Name = 'Line2',
-            Position = UDim2.new(0, 500, 0, 60),
-            Size = UDim2.new(0, 1, 0, 10)
-        })
+        Utility:Create('Frame', {Parent = Main, BackgroundColor3 = Theme.BackgroundColor, BorderSizePixel = 0, Name = 'Filler1', Position = UDim2.new(0,0,0,60), Size = UDim2.new(0,5,0,5)})
+        Utility:Create('Frame', {Parent = Main, BackgroundColor3 = Theme.BackgroundColor, BorderSizePixel = 0, Name = 'Filler2', Position = UDim2.new(0,495,0,60), Size = UDim2.new(0,5,0,5)})
+        Utility:Create('Frame', {Parent = Main, BackgroundColor3 = Theme.AccentColor, BorderSizePixel = 0, Name = 'Line1', Position = UDim2.new(0,-1,0,60), Size = UDim2.new(0,1,0,10)})
+        Utility:Create('Frame', {Parent = Main, BackgroundColor3 = Theme.AccentColor, BorderSizePixel = 0, Name = 'Line2', Position = UDim2.new(0,500,0,60), Size = UDim2.new(0,1,0,10)})
     end
 
-    -- // Main Elements
-    if string.find(Position, 'bottom') then
-        Utility:Create('TextBox', {
-            Font = Enum.Font.Gotham,
-            PlaceholderColor3 = Theme.SecondaryTextColor,
-            PlaceholderText = 'Enter Command',
-            Text = '',
-            TextColor3 = Theme.PrimaryTextColor,
-            TextSize = 14,
-            ClearTextOnFocus = false,
-            Parent = Main,
-            BackgroundColor3 = Theme.SecondaryColor,
-            BorderSizePixel = 0,
-            TextTransparency = 0,
-            BackgroundTransparency = 1,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Visible = false,
-            Name = 'CommandInput',
-            AnchorPoint = Vector2.new(0.5, 1),
-            Position = UDim2.new(0.5, 0, 1, -5),
-            Size = UDim2.new(0, 490, 0, 30)
-        }, {
-            Utility:Create('UIStroke', {
-                Name = 'CommandInputStroke',
-                ApplyStrokeMode = 'Border',
-                Color = Theme.AccentColor,
-                LineJoinMode = 'Round',
-                Thickness = 0
-            }),
-            Utility:Create('UICorner', {
-                CornerRadius = UDim.new(0, 5),
-                Name = 'CommandInputCorner'
-            }),
-            Utility:Create('UIPadding', {
-                PaddingLeft = UDim.new(0, 5),
-                Name = 'CommandInputPadding'
-            }),
-        })
+    -- ────────────────────────────────────────────────
+    --               Command Input / UI
+    -- ────────────────────────────────────────────────
 
-        Utility:Create('TextLabel', {
-            Name = 'Title',
-            Parent = Main,
+    local isBottom = string.find(Position, 'bottom')
+
+    Utility:Create('TextBox', {
+        Font = Enum.Font.Gotham,
+        PlaceholderColor3 = Theme.SecondaryTextColor,
+        PlaceholderText = 'Enter Command',
+        Text = '',
+        TextColor3 = Theme.PrimaryTextColor,
+        TextSize = 14,
+        ClearTextOnFocus = false,
+        Parent = Main,
+        BackgroundColor3 = Theme.SecondaryColor,
+        BorderSizePixel = 0,
+        TextTransparency = 0,
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Visible = false,
+        Name = 'CommandInput',
+        AnchorPoint = isBottom and Vector2.new(0.5, 1) or Vector2.new(0.5, 0),
+        Position = isBottom and UDim2.new(0.5, 0, 1, -5) or UDim2.new(0.5, 0, 0, 5),
+        Size = UDim2.new(0, 490, 0, 30)
+    }, {
+        Utility:Create('UIStroke', {Name = 'CommandInputStroke', ApplyStrokeMode = 'Border', Color = Theme.AccentColor, LineJoinMode = 'Round', Thickness = 0}),
+        Utility:Create('UICorner', {CornerRadius = UDim.new(0, 5), Name = 'CommandInputCorner'}),
+        Utility:Create('UIPadding', {PaddingLeft = UDim.new(0, 5), Name = 'CommandInputPadding'}),
+    })
+
+    Utility:Create('TextLabel', {
+        Name = 'Title',
+        Parent = Main,
+        BackgroundColor3 = Theme.BackgroundColor,
+        BackgroundTransparency = 1,
+        TextTransparency = 1,
+        Position = isBottom and UDim2.new(0, 0, 0, 4) or UDim2.new(0, 0, 0, 40),
+        Size = UDim2.new(0, 250, 0, 20),
+        Font = Enum.Font.Gotham,
+        BorderSizePixel = 0,
+        Text = Name,
+        TextColor3 = Theme.PrimaryTextColor,
+        TextSize = 16,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, {
+        Utility:Create('UIPadding', {Name = 'TitlePadding', PaddingLeft = UDim.new(0, 7)})
+    })
+
+    Utility:Create('TextButton', {
+        Name = 'CloseButton',
+        Position = isBottom and UDim2.new(0, 475, 0, 4) or UDim2.new(0, 475, 0, 40),
+        Size = UDim2.new(0, 20, 0, 20),
+        BackgroundColor3 = Theme.BackgroundColor,
+        TextColor3 = Theme.PrimaryTextColor,
+        AutoButtonColor = false,
+        Font = Enum.Font.Gotham,
+        Parent = Main,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        BorderSizePixel = 0,
+        TextSize = 30,
+        Text = '×'
+    }, {
+        Utility:Create('UICorner', {Name = 'CloseButtonCorner', CornerRadius = UDim.new(0, 5)})
+    })
+
+    Utility:Create('Frame', {
+        Parent = Main,
+        BackgroundColor3 = Theme.BackgroundColor,
+        BorderSizePixel = 0,
+        BackgroundTransparency = 0.5,
+        Name = 'CommandsHolder',
+        Visible = false,
+        Position = isBottom and UDim2.new(0, 0, 0, -305) or UDim2.new(0, 0, 0, 70),
+        Size = UDim2.new(0, 500, 0, 300)
+    }, {
+        Utility:Create('UIStroke', {Name = 'CommandsHolderStroke', ApplyStrokeMode = 'Contextual', Color = Theme.AccentColor, LineJoinMode = 'Round', Thickness = 1}),
+        Utility:Create('UICorner', {CornerRadius = UDim.new(0, 5), Name = 'CommandsHolderCorner'}),
+        Utility:Create('ScrollingFrame', {
             BackgroundColor3 = Theme.BackgroundColor,
+            BorderSizePixel = 0,
             BackgroundTransparency = 1,
-            TextTransparency = 1,
-            Position = UDim2.new(0, 0, 0, 4),
-            Size = UDim2.new(0, 250, 0, 20),
-            Font = Enum.Font.Gotham,
-            BorderSizePixel = 0, 
-            Text = Name,
-            TextColor3 = Theme.PrimaryTextColor,
-            TextSize = 16,
-            TextXAlignment = Enum.TextXAlignment.Left
+            ScrollBarThickness = 1,
+            ScrollBarImageColor3 = Theme.AccentColor,
+            Name = 'CommandsHolderScrolling',
+            Position = UDim2.new(0, 0, 0, 5),
+            Size = UDim2.new(0, 500, 0, 290)
         }, {
-            Utility:Create('UIPadding', {
-                Name = 'TitlePadding',
-                PaddingLeft = UDim.new(0, 7)
+            Utility:Create('UIListLayout', {
+                Name = 'CommandsHolderScrollingListLayout',
+                HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Padding = UDim.new(0, 3)
             })
         })
+    })
 
-        Utility:Create('TextButton', {
-            Name = 'CloseButton',
-            Position = UDim2.new(0, 475, 0, 4),
-            Size = UDim2.new(0, 20, 0, 20),
-            BackgroundColor3 = Theme.BackgroundColor,
-            TextColor3 = Theme.PrimaryTextColor,
-            AutoButtonColor = false,
-            Font = Enum.Font.Gotham,
-            Parent = Main,
-            TextYAlignment = Enum.TextYAlignment.Center,
-            BorderSizePixel = 0,
-            TextSize = 30,
-            Text = '×'
-        }, {
-            Utility:Create('UICorner', {
-                Name = 'CloseButtonCorner',
-                CornerRadius = UDim.new(0, 5)
-            })
-        })
-
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.BackgroundColor,
-            BorderSizePixel = 0,
-            BackgroundTransparency = 0.5,
-            Name = 'CommandsHolder',
-            Visible = false,
-            Position = UDim2.new(0, 0, 0, -305),
-            Size = UDim2.new(0, 500, 0, 300)
-        }, {
-            Utility:Create('UIStroke', {
-                Name = 'CommandsHolderStroke',
-                ApplyStrokeMode = 'Contextual',
-                Color = Theme.AccentColor,
-                LineJoinMode = 'Round',
-                Thickness = 1
-            }),
-            Utility:Create('UICorner', {
-                CornerRadius = UDim.new(0, 5),
-                Name = 'CommandsHolderCorner'
-            }),
-            Utility:Create('ScrollingFrame', {
-                BackgroundColor3 = Theme.BackgroundColor,
-                BorderSizePixel = 0,
-                BackgroundTransparency = 1,
-                ScrollBarThickness = 1,
-                ScrollBarImageColor3 = Theme.AccentColor,
-                Name = 'CommandsHolderScrolling',
-                Position = UDim2.new(0, 0, 0, 5),
-                Size = UDim2.new(0, 500, 0, 290)
-            }, {
-                Utility:Create('UIListLayout', {
-                    Name = 'CommandsHolderScrollingListLayout',
-                    HorizontalAlignment = Enum.HorizontalAlignment.Center,
-                    SortOrder = Enum.SortOrder.LayoutOrder,
-                    Padding = UDim.new(0, 3)
-                })
-            })
-        })
-    else
-        Utility:Create('TextBox', {
-            Font = Enum.Font.Gotham,
-            PlaceholderColor3 = Theme.SecondaryTextColor,
-            PlaceholderText = 'Enter Command',
-            Text = '',
-            TextColor3 = Theme.PrimaryTextColor,
-            TextSize = 14,
-            Parent = Main,
-            BackgroundColor3 = Theme.SecondaryColor,
-            BorderSizePixel = 0,
-            TextTransparency = 0,
-            BackgroundTransparency = 1,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Visible = false,
-            Name = 'CommandInput',
-            AnchorPoint = Vector2.new(0.5, 0),
-            Position = UDim2.new(0.5, 0, 0, 5),
-            Size = UDim2.new(0, 490, 0, 30)
-        }, {
-            Utility:Create('UIStroke', {
-                Name = 'CommandInputStroke',
-                ApplyStrokeMode = 'Border',
-                Color = Theme.AccentColor,
-                LineJoinMode = 'Round',
-                Thickness = 0
-            }),
-            Utility:Create('UICorner', {
-                CornerRadius = UDim.new(0, 5),
-                Name = 'CommandInputCorner'
-            }),
-            Utility:Create('UIPadding', {
-                PaddingLeft = UDim.new(0, 5),
-                Name = 'CommandInputPadding'
-            }),
-        })
-
-        Utility:Create('TextLabel', {
-            Name = 'Title',
-            Parent = Main,
-            BackgroundColor3 = Theme.BackgroundColor,
-            BackgroundTransparency = 1,
-            TextTransparency = 1,
-            Position = UDim2.new(0, 0, 0, 40),
-            Size = UDim2.new(0, 250, 0, 20),
-            Font = Enum.Font.Gotham,
-            BorderSizePixel = 0, 
-            Text = Name,
-            TextColor3 = Theme.PrimaryTextColor,
-            TextSize = 16,
-            TextXAlignment = Enum.TextXAlignment.Left
-        }, {
-            Utility:Create('UIPadding', {
-                Name = 'TitlePadding',
-                PaddingLeft = UDim.new(0, 7)
-            })
-        })
-
-        Utility:Create('TextButton', {
-            Name = 'CloseButton',
-            Position = UDim2.new(0, 475, 0, 40),
-            Size = UDim2.new(0, 20, 0, 20),
-            BackgroundColor3 = Theme.BackgroundColor,
-            TextColor3 = Theme.PrimaryTextColor,
-            AutoButtonColor = false,
-            Font = Enum.Font.Gotham,
-            Parent = Main,
-            TextYAlignment = Enum.TextYAlignment.Center,
-            BorderSizePixel = 0,
-            TextSize = 30,
-            Text = '×'
-        }, {
-            Utility:Create('UICorner', {
-                Name = 'CloseButtonCorner',
-                CornerRadius = UDim.new(0, 5)
-            }),
-        })
-
-        Utility:Create('Frame', {
-            Parent = Main,
-            BackgroundColor3 = Theme.BackgroundColor,
-            BorderSizePixel = 0,
-            Visible = false,
-            BackgroundTransparency = 1,
-            Name = 'CommandsHolder',
-            Position = UDim2.new(0, 0, 0, 70),
-            Size = UDim2.new(0, 500, 0, 300)
-        }, {
-            Utility:Create('UIStroke', {
-                Name = 'CommandsHolderStroke',
-                ApplyStrokeMode = 'Contextual',
-                Color = Theme.AccentColor,
-                LineJoinMode = 'Round',
-                Thickness = 1
-            }),
-            Utility:Create('UICorner', {
-                CornerRadius = UDim.new(0, 5),
-                Name = 'CommandsHolderCorner'
-            }),
-            Utility:Create('ScrollingFrame', {
-                BackgroundColor3 = Theme.BackgroundColor,
-                BorderSizePixel = 0,
-                BackgroundTransparency = 1,
-                ScrollBarThickness = 1,
-                ScrollBarImageColor3 = Theme.AccentColor,
-                Name = 'CommandsHolderScrolling',
-                Position = UDim2.new(0, 0, 0, 5),
-                Size = UDim2.new(0, 500, 0, 290)
-            }, {
-                Utility:Create('UIListLayout', {
-                    Name = 'CommandsHolderScrollingListLayout',
-                    HorizontalAlignment = Enum.HorizontalAlignment.Center,
-                    SortOrder = Enum.SortOrder.LayoutOrder,
-                    Padding = UDim.new(0, 3)
-                })
-            })
-        })
-    end
-
+    -- ToolTip
     Utility:Create('TextLabel', {
         Name = 'ToolTip',
         Parent = Container,
@@ -829,35 +553,25 @@ function Library:CreateWindow(Properties)
         ZIndex = 100,
         Text = '',
         Font = Enum.Font.Gotham,
-        BorderSizePixel = 0, 
+        BorderSizePixel = 0,
         TextColor3 = Theme.PrimaryTextColor,
         TextSize = 15
     }, {
-        Utility:Create('UICorner', {
-            Name = 'ToolTipCorner',
-            CornerRadius = UDim.new(0, 5)
-        }),
-        Utility:Create('UIPadding', {
-            Name = 'ToolTipPadding',
-            PaddingLeft = UDim.new(0, 3),
-            PaddingTop = UDim.new(0, 3)
-        }),
-        Utility:Create('UIStroke', {
-            Name = 'ToolTipStroke',
-            ApplyStrokeMode = 'Border',
-            Color = Theme.AccentColor,
-            LineJoinMode = 'Round',
-            Thickness = 1
-        })
+        Utility:Create('UICorner', {Name = 'ToolTipCorner', CornerRadius = UDim.new(0, 5)}),
+        Utility:Create('UIPadding', {Name = 'ToolTipPadding', PaddingLeft = UDim.new(0, 3), PaddingTop = UDim.new(0, 3)}),
+        Utility:Create('UIStroke', {Name = 'ToolTipStroke', ApplyStrokeMode = 'Border', Color = Theme.AccentColor, LineJoinMode = 'Round', Thickness = 1})
     })
-    
-    -- // Theme Update
+
+    -- ────────────────────────────────────────────────
+    --               Theme Update Loop
+    -- ────────────────────────────────────────────────
+
     task.spawn(function()
         while task.wait() do
             if ChangeTheme then
                 if not BreakLoops then
                     Utility:Tween(Main, {BackgroundColor3 = Library.Theme.BackgroundColor}, 0.25)
-                    Utility:Tween(Main.MainStroke, {Color = Library.Theme.AccentColor}, 0.25)   
+                    Utility:Tween(Main.MainStroke, {Color = Library.Theme.AccentColor}, 0.25)
                     Utility:Tween(Main.Filler1, {BackgroundColor3 = Library.Theme.BackgroundColor}, 0.25)
                     Utility:Tween(Main.Filler2, {BackgroundColor3 = Library.Theme.BackgroundColor}, 0.25)
                     Utility:Tween(Main.Line1, {BackgroundColor3 = Library.Theme.AccentColor}, 0.25)
@@ -873,10 +587,10 @@ function Library:CreateWindow(Properties)
                     Utility:Tween(Main.CommandsHolder, {BackgroundColor3 = Library.Theme.BackgroundColor}, 0.25)
                     Utility:Tween(Main.CommandsHolder.CommandsHolderScrolling, {BackgroundColor3 = Library.Theme.BackgroundColor}, 0.25)
                     Utility:Tween(Main.CommandsHolder.CommandsHolderScrolling, {ScrollBarImageColor3 = Library.Theme.AccentColor}, 0.25)
-                    Utility:Tween(Main.CommandsHolder.CommandsHolderStroke, {Color = Theme.AccentColor}, 0.25)
+                    Utility:Tween(Main.CommandsHolder.CommandsHolderStroke, {Color = Library.Theme.AccentColor}, 0.25)
                     Utility:Tween(Container.ToolTip, {BackgroundColor3 = Library.Theme.BackgroundColor}, 0.25)
                     Utility:Tween(Container.ToolTip, {TextColor3 = Library.Theme.PrimaryTextColor}, 0.25)
-                    Utility:Tween(Container.ToolTip.ToolTipStroke, {Color = Theme.AccentColor}, 0.25)
+                    Utility:Tween(Container.ToolTip.ToolTipStroke, {Color = Library.Theme.AccentColor}, 0.25)
                 else
                     break
                 end
@@ -884,28 +598,23 @@ function Library:CreateWindow(Properties)
         end
     end)
 
-    -- // Animate Elements
+    -- Animate in elements
     task.wait(0.25)
-
     local CommandInput = Main.CommandInput
     local CommandInputStroke = CommandInput.CommandInputStroke
     local CloseButton = Main.CloseButton
     local CommandsHolder = Main.CommandsHolder
     local CommandsHolderScrolling = CommandsHolder.CommandsHolderScrolling
-    local CommandsHolderScrollingListLayout = CommandsHolderScrolling.CommandsHolderScrollingListLayout
 
     for _, Element in next, Main:GetChildren() do
         if Element:IsA('TextBox') or Element:IsA('TextLabel') or Element:IsA('TextButton') or Element:IsA('ImageButton') then
             Element.Visible = true
-            
             if Utility:HasProperty(Element, 'BackgroundTransparency') then
                 Utility:Tween(Element, {BackgroundTransparency = 0}, 0.25)
             end
-
             if Utility:HasProperty(Element, 'TextTransparency') then
                 Utility:Tween(Element, {TextTransparency = 0}, 0.25)
             end
-
             if Utility:HasProperty(Element, 'ImageTransparency') then
                 Utility:Tween(Element, {ImageTransparency = 0}, 0.25)
             end
@@ -922,39 +631,39 @@ function Library:CreateWindow(Properties)
         Utility:Tween(CloseButton, {TextColor3 = Theme.PrimaryTextColor}, 0.25)
     end)
 
-    -- // Update Command Holder Sizes
+    -- ────────────────────────────────────────────────
+    --               Command List Size Update
+    -- ────────────────────────────────────────────────
+
     local function UpdateFrameSizes()
         local Count = 0
-
         for _, Instance in next, CommandsHolderScrolling:GetChildren() do
             if not Instance:IsA('UIListLayout') and Instance.Visible then
-                Count += 1 
+                Count += 1
             end
         end
 
         local Size = Count * 30
         local Padding = 3 * Count
-
-        Size += Padding - 3
+        Size = Size + Padding - 3
 
         if Count == 0 then
             Utility:Tween(CommandsHolder, {Size = UDim2.new(0, 500, 0, 0)}, 0.25)
             Utility:Tween(CommandsHolderScrolling, {Size = UDim2.new(0, 500, 0, Size)}, 0.25)
             Utility:Tween(CommandsHolderScrolling, {CanvasSize = UDim2.new(0, 500, 0, Size)}, 0.25)
-
         elseif Count < 9 then
             Utility:Tween(CommandsHolder, {Size = UDim2.new(0, 500, 0, Size + 10)}, 0.25)
             Utility:Tween(CommandsHolderScrolling, {Size = UDim2.new(0, 500, 0, Size)}, 0.25)
             Utility:Tween(CommandsHolderScrolling, {CanvasSize = UDim2.new(0, 500, 0, Size)}, 0.25)
 
-            if string.find(Position, 'bottom') then
-                if Main.Position.Y == UDim.new(1, 1) or Main.Position.Y == UDim.new(1, 0) or Main.Position.Y == UDim.new(1, 2) or Main.Position.Y == UDim.new(0, -37) then
+            if isBottom then
+                if Main.Position.Y.Offset < 0 then
                     Utility:Tween(CommandsHolder, {Position = UDim2.new(0, 0, 0, -Main.Position.Y.Offset - Size - 13)}, 0.25)
                 else
                     Utility:Tween(CommandsHolder, {Position = UDim2.new(0, 0, 0, -Main.Position.Y.Offset - Size + 22)}, 0.25)
                 end
             else
-                if Main.Position.Y == UDim.new(1, 36) or Main.Position.Y == UDim.new(0, -72) then
+                if Main.Position.Y.Offset > 0 then
                     Utility:Tween(CommandsHolder, {Position = UDim2.new(0, 0, 0, -Main.Position.Y.Offset - 3)}, 0.25)
                 else
                     Utility:Tween(CommandsHolder, {Position = UDim2.new(0, 0, 0, -Main.Position.Y.Offset + 33)}, 0.25)
@@ -965,14 +674,14 @@ function Library:CreateWindow(Properties)
             Utility:Tween(CommandsHolderScrolling, {Size = UDim2.new(0, 500, 0, 260)}, 0.25)
             Utility:Tween(CommandsHolderScrolling, {CanvasSize = UDim2.new(0, 500, 0, Size)}, 0.25)
 
-            if string.find(Position, 'bottom') then
-                if Main.Position.Y == UDim.new(1, 1) or Main.Position.Y == UDim.new(1, 0) or Main.Position.Y == UDim.new(1, 2) or Main.Position.Y == UDim.new(0, -37) then
+            if isBottom then
+                if Main.Position.Y.Offset < 0 then
                     Utility:Tween(CommandsHolder, {Position = UDim2.new(0, 0, 0, -Main.Position.Y.Offset - 273)}, 0.25)
                 else
                     Utility:Tween(CommandsHolder, {Position = UDim2.new(0, 0, 0, -Main.Position.Y.Offset - 237)}, 0.25)
                 end
             else
-                if Main.Position.Y == UDim.new(1, 36) or Main.Position.Y == UDim.new(0, -72) then
+                if Main.Position.Y.Offset > 0 then
                     Utility:Tween(CommandsHolder, {Position = UDim2.new(0, 0, 0, -Main.Position.Y.Offset - 3)}, 0.25)
                 else
                     Utility:Tween(CommandsHolder, {Position = UDim2.new(0, 0, 0, -Main.Position.Y.Offset + 33)}, 0.25)
@@ -984,747 +693,314 @@ function Library:CreateWindow(Properties)
     CommandsHolderScrolling.ChildAdded:Connect(UpdateFrameSizes)
     CommandsHolderScrolling.ChildRemoved:Connect(UpdateFrameSizes)
 
-    -- // Main Button Callbacks
+    -- Close button
     CloseButton.MouseButton1Down:Connect(function()
         Utility:Tween(CloseButton, {TextColor3 = Utility:Darken(Theme.PrimaryTextColor)}, 0.25)
-
         task.wait(0.25)
-
         Utility:Tween(CloseButton, {TextColor3 = Theme.PrimaryTextColor}, 0.25)
-
         task.wait(0.25)
-
         Utility:Destroy()
     end)
 
-    -- // Prefix
-    UserInputService.InputBegan:Connect(function(Input, GameProcessedEvent)
-        if not GameProcessedEvent then
-            if Input.KeyCode.Name == Library.Prefix.Name then
-                if Main.Position.Y == UDim.new(1, 37) or Main.Position.Y == UDim.new(1, 36) or Main.Position.Y == UDim.new(0, -72) then
-                    UpdateFrameSizes()
-                    CommandInput:CaptureFocus()
-                    if string.find(Position, 'bottom') then
-                        Utility:Tween(Main, {Position = Main.Position + UDim2.new(0, 0, 0, -36)}, 0.25)
-                        
-                        task.wait(0.25)
+    -- Prefix open
+    UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+        if GameProcessed then return end
+        if Input.KeyCode == Library.Prefix then
+            UpdateFrameSizes()
+            CommandInput:CaptureFocus()
 
-                        CommandsHolder.Visible = true
+            if isBottom then
+                Utility:Tween(Main, {Position = Main.Position + UDim2.new(0,0,0,-36)}, 0.25)
+            else
+                Utility:Tween(Main, {Position = Main.Position + UDim2.new(0,0,0,36)}, 0.25)
+            end
 
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 0.25}, 0.25)
+            task.wait(0.25)
+            CommandsHolder.Visible = true
+            Utility:Tween(CommandsHolder, {BackgroundTransparency = 0.25}, 0.25)
+            task.wait(0.25)
 
-                        task.wait(0.25)
-
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 0.25}, 0.25)
-                                end
-
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 0}, 0.25)
-                                end
-                            end
-                        end
-                    else
-                        Utility:Tween(Main, {Position = Main.Position + UDim2.new(0, 0, 0, 36)}, 0.25)    
-                        
-                        task.wait(0.25)
-
-                        CommandsHolder.Visible = true
-
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 0.25}, 0.25)
-
-                        task.wait(0.25)
-
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 0.25}, 0.25)
-                                end
-
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 0}, 0.25)
-                                end
-                            end
-                        end
+            for _, v in next, CommandsHolderScrolling:GetDescendants() do
+                if not v:IsA('UIListLayout') and not v:IsA('TextButton') then
+                    if v:IsA('Frame') then
+                        Utility:Tween(v, {BackgroundTransparency = 0.25}, 0.25)
+                    end
+                    if Utility:HasProperty(v, 'TextTransparency') then
+                        Utility:Tween(v, {TextTransparency = 0}, 0.25)
                     end
                 end
             end
         end
     end)
 
-    -- // Execute Command
-    local function Execute(String)
-        local Split = String:split(' ')
-        local Arguments = {}
-        local First = Split[1]:lower():gsub(Utility:KeyCodeToString(Library.Prefix), '')
+    -- ────────────────────────────────────────────────
+    --               Command Execution
+    -- ────────────────────────────────────────────────
 
-        CommandInput.Text = ''
+    local HoverDebounce = false
 
-        local Command = assert(Commands[First], '[V0id] Command Not Found: ' .. First)
+    local function Execute(str)
+        if str == "" then return end
 
-        local NumberOfArguments = #Command.Arguments
+        local split = str:split(" ")
+        local cmdName = split[1]:lower():gsub(Utility:KeyCodeToString(Library.Prefix), "")
+        local args = {}
 
-        for Index, Argument in next, Split do
-            if Index > 1 then
-                table.insert(Arguments, Argument)
-            end
+        for i = 2, #split do
+            table.insert(args, split[i])
         end
 
-        if NumberOfArguments > #Arguments then
-            local Missing = ''
-            
-            for Index = 1, NumberOfArguments do
-                if not Arguments[Index] then
-                    Missing = Missing .. tostring(Command.Arguments[Index])
-                end
-            end
-
-            Utility:Log('Error', 'Missing Arguments: ' .. Missing .. ' | Command: ' .. First)
-
-            if not HoverDebounce then
-                if Main.Position.Y == UDim.new(1, 0) or Main.Position.Y == UDim.new(0, -36) then
-                    CommandInput.Text = ''
-
-                    task.spawn(function()
-                        HoverDebounce = true
-                        task.wait(0.5)
-                        HoverDebounce = false 
-                    end)
-
-                    if string.find(Position, 'bottom') then
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 1}, 0.25)
-                                end
-
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 1}, 0.25)
-                                end
-                            end
-                        end
-
-                        task.wait(0.25)
-
-                        Utility:Tween(Main, {Position = Main.Position + UDim2.new(0, 0, 0, 36)}, 0.25)
-
-                        task.wait(0.25)
-                        
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
-
-                        task.wait(0.25)
-
-                        CommandsHolder.Visible = false
-                    else
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 1}, 0.25)
-                                end
-
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 1}, 0.25)
-                                end
-                            end
-                        end
-
-                        task.wait(0.25)
-
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
-
-                        task.wait(0.25)
-
-                        Utility:Tween(Main, {Position = Main.Position + UDim2.new(0, 0, 0, -36)}, 0.25)
-
-                        task.wait(0.25)
-
-                        CommandsHolder.Visible = false
-                    end
-                end
-            end
-        else
-            task.spawn(Command.Callback, Arguments, Players.LocalPlayer)
-
-            if Main.Position.Y == UDim.new(1, 0) or Main.Position.Y == UDim.new(0, -36) then
-                CommandInput.Text = ''
-
-                if not HoverDebounce then
-                    task.spawn(function()
-                        HoverDebounce = true
-                        task.wait(0.5)
-                        HoverDebounce = false 
-                    end)
-
-                    if string.find(Position, 'bottom') then
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 1}, 0.25)
-                                end
-
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 1}, 0.25)
-                                end
-                            end
-                        end
-
-                        task.wait(0.25)
-
-                        Utility:Tween(Main, {Position = Main.Position + UDim2.new(0, 0, 0, 36)}, 0.25)
-
-                        task.wait(0.25)
-                        
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
-
-                        task.wait(0.25)
-
-                        CommandsHolder.Visible = false
-                    else
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 1}, 0.25)
-                                end
-
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 1}, 0.25)
-                                end
-                            end
-                        end
-
-                        task.wait(0.25)
-
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
-
-                        task.wait(0.25)
-
-                        Utility:Tween(Main, {Position = Main.Position + UDim2.new(0, 0, 0, -36)}, 0.25)
-
-                        task.wait(0.25)
-
-                        CommandsHolder.Visible = false
-                    end
-                end
-            end
+        local command = Commands[cmdName]
+        if not command then
+            Utility:Log('error', 'Command not found: ' .. cmdName)
+            return
         end
-    end
 
-    -- // Search Commands
-    CommandInput:GetPropertyChangedSignal('Text'):Connect(function()
-        if CommandInput.Text == '' then
-            for _, Instance in next, CommandsHolderScrolling:GetChildren() do
-                if not Instance:IsA('UIListLayout') then
-                    Instance.Visible = true
-
-                    UpdateFrameSizes()
-                end
-            end
-        else
-            local Split = CommandInput.Text:split()
-            local Full = ''
-            
-            for Index, String in next, Split do
-                if Index == 1 then
-                    Full = Full .. Split[1]:gsub(Utility:KeyCodeToString(Library.Prefix), '')
-                else
-                    Full = Full .. Split[Index]
-                end
-            end
-
-            CommandInput.Text = Full
-
-            for _, Instance in next, CommandsHolderScrolling:GetChildren() do
-                if not Instance:IsA('UIListLayout') then
-                    if string.find(Instance.Name:gsub('CommandHolder', ''):lower(), CommandInput.Text:lower()) then
-                        Instance.Visible = true
-
-                        UpdateFrameSizes()
-                    else
-
-                        Instance.Visible = false
-
-                        UpdateFrameSizes()
-                    end
-                end
-            end
+        if #args < #command.Arguments then
+            Utility:Log('error', 'Missing arguments for: ' .. cmdName)
+            return
         end
-    end)
 
-    -- // Command Entered
-    CommandInput.FocusLost:Connect(function()
+        task.spawn(command.Callback, args, Players.LocalPlayer)
+
+        -- Close UI after execution
+        CommandInput.Text = ""
+
         if not HoverDebounce then
-            task.spawn(function()
-                HoverDebounce = true
-                task.wait(0.5)
-                HoverDebounce = false 
-            end)
+            HoverDebounce = true
+            task.delay(0.5, function() HoverDebounce = false end)
 
-            if not IsInCommandsHolder and not Dragging then
-                if Main.Position.Y == UDim.new(1, 0) or Main.Position.Y == UDim.new(0, -36) then
-                    task.spawn(function()
-                        Execute(CommandInput.Text)
-                        CommandInput.Text = ''
-                    end)
-
-                    if string.find(Position, 'bottom') then
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 1}, 0.25)
-                                end
-
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 1}, 0.25)
-                                end
-                            end
-                        end
-
-                        task.wait(0.25)
-
-                        Utility:Tween(Main, {Position = Main.Position + UDim2.new(0, 0, 0, 36)}, 0.25)
-
-                        task.wait(0.25)
-                        
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
-
-                        task.wait(0.25)
-
-                        CommandsHolder.Visible = false
-                    else
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 1}, 0.25)
-                                end
-
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 1}, 0.25)
-                                end
-                            end
-                        end
-
-                        task.wait(0.25)
-
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
-
-                        task.wait(0.25)
-
-                        Utility:Tween(Main, {Position = Main.Position + UDim2.new(0, 0, 0, -36)}, 0.25)
-
-                        task.wait(0.25)
-
-                        CommandsHolder.Visible = false
+            if isBottom then
+                for _, v in next, CommandsHolderScrolling:GetDescendants() do
+                    if not v:IsA('UIListLayout') and not v:IsA('TextButton') then
+                        if v:IsA('Frame') then Utility:Tween(v, {BackgroundTransparency = 1}, 0.25) end
+                        if Utility:HasProperty(v, 'TextTransparency') then Utility:Tween(v, {TextTransparency = 1}, 0.25) end
                     end
                 end
+                task.wait(0.25)
+                Utility:Tween(Main, {Position = Main.Position + UDim2.new(0,0,0,36)}, 0.25)
+                task.wait(0.25)
+                Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
+                task.wait(0.25)
+                CommandsHolder.Visible = false
+            else
+                for _, v in next, CommandsHolderScrolling:GetDescendants() do
+                    if not v:IsA('UIListLayout') and not v:IsA('TextButton') then
+                        if v:IsA('Frame') then Utility:Tween(v, {BackgroundTransparency = 1}, 0.25) end
+                        if Utility:HasProperty(v, 'TextTransparency') then Utility:Tween(v, {TextTransparency = 1}, 0.25) end
+                    end
+                end
+                task.wait(0.25)
+                Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
+                task.wait(0.25)
+                Utility:Tween(Main, {Position = Main.Position + UDim2.new(0,0,0,-36)}, 0.25)
+                task.wait(0.25)
+                CommandsHolder.Visible = false
             end
+        end
+    end
+
+    -- Live search / filter
+    CommandInput:GetPropertyChangedSignal("Text"):Connect(function()
+        local input = CommandInput.Text:lower():gsub(Utility:KeyCodeToString(Library.Prefix), "")
+
+        if input == "" then
+            for _, child in next, CommandsHolderScrolling:GetChildren() do
+                if not child:IsA("UIListLayout") then
+                    child.Visible = true
+                end
+            end
+        else
+            for _, child in next, CommandsHolderScrolling:GetChildren() do
+                if not child:IsA("UIListLayout") then
+                    child.Visible = string.find(child.Name:lower(), input) ~= nil
+                end
+            end
+        end
+
+        UpdateFrameSizes()
+    end)
+
+    -- Execute on enter
+    CommandInput.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            Execute(CommandInput.Text)
         end
     end)
 
-    -- // Tool Tips
-    function CreateToolTip(Text, Clone, Enabled)
-        local ToolTip = Container.ToolTip
-        
-        if Enabled then
-            local Size = TextService:GetTextSize(Clone, ToolTip.TextSize, ToolTip.Font, Vector2.new(300, math.huge))
-            Utility:Tween(ToolTip, {Size = UDim2.new(0, Size.X + 5, 0, Size.Y + 5)}, 0.25)
+    -- ────────────────────────────────────────────────
+    --               Tooltip System
+    -- ────────────────────────────────────────────────
 
-            if ToolTip.Visible then
-                RunService:UnbindFromRenderStep('ToolTip')
+    local function CreateToolTip(text, plainText, enabled)
+        local tooltip = Container.ToolTip
 
-                ToolTip.Visible = false
-            end
+        if enabled and text then
+            local size = TextService:GetTextSize(plainText, tooltip.TextSize, tooltip.Font, Vector2.new(300, math.huge))
+            Utility:Tween(tooltip, {Size = UDim2.new(0, size.X + 10, 0, size.Y + 10)}, 0.1)
 
-            RunService:BindToRenderStep('ToolTip', 1, function()
-                local MouseLocation = UserInputService:GetMouseLocation()
-                local ViewportSize = Workspace.CurrentCamera.ViewportSize
-
-                local Offset = UDim2.new(0, 0, 0, 0)
-                local NewPosition = UDim2.new(MouseLocation.X / ViewportSize.X, 0, MouseLocation.Y / ViewportSize.Y, 0) + Offset
-
-                Utility:Tween(ToolTip, {Position = NewPosition}, 0.25)
+            RunService:BindToRenderStep("TooltipFollow", Enum.RenderPriority.Input.Value, function()
+                local mouse = UserInputService:GetMouseLocation()
+                local vp = Workspace.CurrentCamera.ViewportSize
+                tooltip.Position = UDim2.new(0, mouse.X + 15, 0, mouse.Y + 15)
             end)
 
-            ToolTip.Text = Text
-		    ToolTip.Visible = true
-
+            tooltip.Text = text
+            tooltip.Visible = true
         else
-            if ToolTip.Visible then
-                ToolTip.Visible = false
-                RunService:UnbindFromRenderStep('ToolTip')
-            end
+            tooltip.Visible = false
+            RunService:UnbindFromRenderStep("TooltipFollow")
         end
-        
     end
 
-    local WindowFunctions = {}
+    -- ────────────────────────────────────────────────
+    --               Window API
+    -- ────────────────────────────────────────────────
 
-    function WindowFunctions:ChangePrefix(Prefix)
-        Library.Prefix = Utility:StringToKeyCode(Prefix)
+    local Window = {}
+
+    function Window:ChangePrefix(newPrefix)
+        Library.Prefix = Utility:StringToKeyCode(tostring(newPrefix))
     end
 
-    function WindowFunctions:AddTheme(Name, Theme)
-        if Library.Themes[Name] then
-            Utility:Log('Error', 'A Theme Already Exists With The Name' .. Name)
+    function Window:AddTheme(name, themeTable)
+        Library.Themes[name:lower()] = themeTable
+    end
+
+    function Window:ChangeTheme(newTheme)
+        if type(newTheme) == "table" then
+            Library.Theme = newTheme
+            Library.Themes.custom = newTheme
+        elseif Library.Themes[newTheme:lower()] then
+            Library.Theme = Library.Themes[newTheme:lower()]
         else
-            Library.Themes[Name:lower()] = Theme
+            return Utility:Log("error", "Theme not found: " .. tostring(newTheme))
         end
+        ChangeTheme = true
+        task.delay(0.3, function() ChangeTheme = false end)
     end
 
-    function WindowFunctions:GetThemes(Names)
-        if Names then
-            local Table = {}
+    function Window:CreateNotification(title, text, duration)
+        duration = duration or 5
 
-            for Index, Theme in next, Library.Themes do
-                table.insert(Table, Index)
-            end
-
-            return Table
-        else
-            return Library.Themes
-        end
-    end
-
-    function WindowFunctions:ChangeTheme(NewTheme)
-        local function ChangeThemeActive()
-            task.spawn(function()
-                ChangeTheme = true
-                
-                task.wait()
-
-                ChangeTheme = false
-            end)
+        local count = 0
+        for _, v in next, Container:GetChildren() do
+            if v.Name:match("^Notification") then count += 1 end
         end
 
-        if type(NewTheme) == 'table' then
-            Theme = NewTheme
-            Library.Themes['custom'] = Theme
-            ChangeThemeActive()
-    
-        elseif type(NewTheme) == 'string' then
-            if Library.Themes[NewTheme] then
-                Library.Theme = Library.Themes[NewTheme]
-                Theme = Library.Theme
-                ChangeThemeActive()
-            else
-                Utility:Log('Error', 'Theme Doesn\'t exist: ' .. NewTheme)
-            end
-        end
-    end
-
-    function WindowFunctions:CreateNotification(Title, Text, Duration)
-        local function NotificationCount()
-            local Amount = 0
-
-            for _, Notification in next, Container:GetChildren() do
-                if string.find(Notification.Name, 'Notification') then
-                    Amount += 1
-                end
-            end 
-
-            return Amount
-        end
-
-        task.wait(0.5)
-
-        task.spawn(function()
-            local Title = Title or 'Title'
-            local Text = Text or 'Text'
-            local Duration = Duration or 5
-
-            Utility:Create('Frame', {
-                Parent = Container,
-                Name = 'Notification' .. tostring(NotificationCount() + 1),
-                BackgroundColor3 = Library.Theme.BackgroundColor,
-                BorderSizePixel = 0,
-                Position = UDim2.new(1, 300, 1, -30),
-                Size = UDim2.new(0, 300, 0, 50),
-                BackgroundTransparency = 0,
-                AnchorPoint = Vector2.new(1, 1)
-            }, {
-                Utility:Create('UICorner', {
-                    CornerRadius = UDim.new(0, 5),
-                    Name = 'NotificationCorner'
-                }),
-                Utility:Create('UIStroke', {
-                    Name = 'NotificationStroke',
-                    ApplyStrokeMode = 'Contextual',
-                    Color = Library.Theme.AccentColor,
-                    LineJoinMode = 'Round',
-                    Thickness = 1
-                }),
-                Utility:Create('TextLabel', {
-                    Name = 'NotificationTitle',
-                    BackgroundTransparency = 1,
-                    Position = UDim2.new(0, 0, 0, -1),
-                    Size = UDim2.new(0, 300, 0, 30),
-                    Font = Enum.Font.Gotham,
-                    Text = Title,
-                    TextColor3 = Library.Theme.PrimaryTextColor,
-                    TextSize = 16,
-                    TextXAlignment = Enum.TextXAlignment.Left
-                }, {
-                    Utility:Create('UIPadding', {
-                        Name = 'NotificationTitlePadding',
-                        PaddingLeft = UDim.new(0, 7)
-                    })
-                }),
-                Utility:Create('TextLabel', {
-                    Name = 'NotificationText',
-                    BackgroundTransparency = 1,
-                    Position = UDim2.new(0, 0, 0, 25),
-                    Size = UDim2.new(0, 300, 0, 30),
-                    Font = Enum.Font.Gotham,
-                    Text = Text,
-                    TextWrapped = true,
-                    TextColor3 = Library.Theme.SecondaryTextColor,
-                    TextSize = 14,
-                    TextXAlignment = Enum.TextXAlignment.Left
-                }, {
-                    Utility:Create('UIPadding', {
-                        Name = 'NotificationTextPadding',
-                        PaddingLeft = UDim.new(0, 7)
-                    })
-                })
-            })
-
-            local Holder = Container['Notification' .. tostring(NotificationCount())]
-            local TitleObj = Holder['NotificationTitle']
-            local TextObj = Holder['NotificationText']
-            local TextSize = TextService:GetTextSize(Text, 14, Enum.Font.Gotham, Vector2.new(300, math.huge))
-
-            Holder.Size = UDim2.new(0, 300, 0, TextSize.Y + 30)
-            TextObj.Size = UDim2.new(0, 300, 0, TextSize.Y)
-
-            if NotificationCount() > 1 then
-                local PreviousSizes = 0
-
-                for _, Notification in next, Container:GetChildren() do
-                    if string.find(Notification.Name, 'Notification') and Notification ~= Holder.Parent['Notification' .. tostring(NotificationCount())] and Notification.Position.X == UDim.new(1, -30) then
-                        local AbsoluteY = Notification.AbsoluteSize.Y + 5
-
-                        PreviousSizes = PreviousSizes + AbsoluteY
-                    end
-                end
-
-                Holder.Position = UDim2.new(1, 300, 1, -30 - PreviousSizes)
-
-                Utility:Tween(Holder, {Position = UDim2.new(1, -30, 1, -30 - PreviousSizes)}, 0.25)
-            else
-                Utility:Tween(Holder, {Position = UDim2.new(1, -30, 1, -30)}, 0.25)
-            end
-
-            task.wait(Duration - 0.5)
-
-            Utility:Tween(Holder, {BackgroundTransparency = 0.8}, 0.25)
-            Utility:Tween(TitleObj, {TextTransparency = 0.5}, 0.25)
-            Utility:Tween(TextObj, {TextTransparency = 0.5}, 0.25)
-
-            task.wait(0.25)
-
-            Utility:Tween(Holder, {Position = UDim2.new(1, 300, 1, Holder.Position.Y.Offset)}, 0.25)
-
-            task.wait(0.25)
-
-            Holder:Destroy()
-        end)
-    end
-
-    function WindowFunctions:AddCommand(Name, Arguments, Description, Callback)
-        Commands[Name:lower()] = {
-            Name = Name:lower(),
-            Arguments = Arguments,
-            Description = Description,
-            Callback = Callback
-        }
-
-        local function Highlight(String, Color)
-            return string.format('<font color = "rgb(%d, %d, %d)">%s</font>', Color.r * 255, Color.g * 255, Color.b * 255, String)
-        end
-
-        local function ConstructString(Highlighted)
-            if Highlighted then
-                local String = '' .. Highlight(Name, Library.Theme.PrimaryTextColor) .. ' '
-
-                for _, Argument in next, Arguments do
-                    String = String .. Highlight('{' .. Argument .. '}', Library.Theme.SecondaryTextColor) .. ' '
-                end
-
-                String = String .. Highlight('| ', Library.Theme.AccentColor) .. Highlight(Description, Library.Theme.SecondaryTextColor)
-
-                return String
-            else
-                local String = Name .. ' '
-
-                for _, Argument in next, Arguments do
-                    String = String .. '{' .. Argument .. '}' .. ' '
-                end
-
-                String = String .. '| ' .. Description
-
-                return String
-            end
-        end
-
-        Utility:Create('Frame', {
-            Parent = CommandsHolderScrolling,
-            BackgroundColor3 = Theme.BackgroundColor,
-            BorderSizePixel = 0,
-            BackgroundTransparency = 0.25,
-            Name = Name .. 'CommandHolder',
-            Size = UDim2.new(0, 490, 0, 30)
+        local notif = Utility:Create("Frame", {
+            Name = "Notification" .. (count + 1),
+            Parent = Container,
+            BackgroundColor3 = Library.Theme.BackgroundColor,
+            Position = UDim2.new(1, 320, 1, -80 - (count * 60)),
+            Size = UDim2.new(0, 300, 0, 60),
+            AnchorPoint = Vector2.new(1,1)
         }, {
-            Utility:Create('UICorner', {
-                CornerRadius = UDim.new(0, 5),
-                Name = Name .. 'CommandsHolderCorner'
-            }),
-            Utility:Create('TextLabel', {
-                Name = Name .. 'Text',
-                BackgroundColor3 = Theme.BackgroundColor,
+            Utility:Create("UICorner", {CornerRadius = UDim.new(0,6)}),
+            Utility:Create("UIStroke", {Color = Library.Theme.AccentColor, Thickness = 1}),
+            Utility:Create("TextLabel", {
+                Name = "Title",
+                Size = UDim2.new(1,0,0,25),
                 BackgroundTransparency = 1,
-                TextTransparency = 0,
-                BorderSizePixel = 0,
-                RichText = true,
-                Size = UDim2.new(0, 490, 0, 30),
-                Font = Enum.Font.Gotham,
-                Text = ConstructString(true),
-                TextColor3 = Theme.PrimaryTextColor,
-                TextSize = 15,
-                ZIndex = 2,
+                Text = title or "Notification",
+                TextColor3 = Library.Theme.PrimaryTextColor,
+                Font = Enum.Font.GothamBold,
+                TextSize = 16,
                 TextXAlignment = Enum.TextXAlignment.Left
-            }, {
-                Utility:Create('UIPadding', {
-                    PaddingLeft = UDim.new(0, 5),
-                    Name = Name .. 'Padding'
-                })
-            }),
-            Utility:Create('TextButton', {
-                Name = Name .. 'Button',
-                Size = UDim2.new(0, 490, 0, 30),
+            }, {Utility:Create("UIPadding", {PaddingLeft = UDim.new(0,12)})}),
+            Utility:Create("TextLabel", {
+                Name = "Text",
+                Size = UDim2.new(1,0,0,30),
+                Position = UDim2.new(0,0,0,25),
                 BackgroundTransparency = 1,
-                AutoButtonColor = false,
-                BorderSizePixel = 0,
-                ZIndex = 100,
-                Text = ''
-            }, {
-                Utility:Create('UICorner', {
-                    CornerRadius = UDim.new(0, 5),
-                    Name = Name .. 'ButtonCorner'
-                })
-            })
+                Text = text or "",
+                TextColor3 = Library.Theme.SecondaryTextColor,
+                Font = Enum.Font.Gotham,
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextWrapped = true
+            }, {Utility:Create("UIPadding", {PaddingLeft = UDim.new(0,12)})})
         })
 
-        -- // Variables
-        local CommandHolder = CommandsHolderScrolling[Name .. 'CommandHolder']
-        local Button = CommandHolder[Name .. 'Button']
+        local textSize = TextService:GetTextSize(text or "", 14, Enum.Font.Gotham, Vector2.new(280, math.huge))
+        notif.Size = UDim2.new(0, 300, 0, textSize.Y + 35)
 
-        -- // Theme Updates
-        task.spawn(function()
-            while task.wait() do
-                if ChangeTheme then
-                    if not BreakLoops then
-                        Utility:Tween(CommandsHolderScrolling[Name .. 'CommandHolder'], {BackgroundColor3 = Library.Theme.BackgroundColor}, 0.25)
-                        Utility:Tween(CommandsHolderScrolling[Name .. 'CommandHolder'][Name .. 'Text'], {BackgroundColor3 = Library.Theme.BackgroundColor}, 0.25)
-                        Utility:Tween(CommandsHolderScrolling[Name .. 'CommandHolder'][Name .. 'Text'], {TextColor3 = Library.Theme.PrimaryTextColor}, 0.25)
-                        CommandHolder[Name .. 'Text'].Text = ConstructString(true)
-                    else
-                        break
-                    end
-                end
-            end
-        end)
+        Utility:Tween(notif, {Position = UDim2.new(1, -20, 1, -80 - (count * 60))}, 0.4)
 
-        -- // Events
-        Button.MouseButton1Down:Connect(function()
-            Utility:Tween(CommandHolder, {BackgroundColor3 = Utility:Lighten(Theme.BackgroundColor)}, 0.25)
-
-            task.wait(0.25)
-
-            pcall(Execute(Name))
-
-            Utility:Tween(CommandHolder, {BackgroundColor3 = Theme.BackgroundColor}, 0.25)
-
-            task.wait(0.25)
-
-            if not HoverDebounce then
-                task.spawn(function()
-                    HoverDebounce = true
-                    task.wait(0.5)
-                    HoverDebounce = false 
-                end)
-
-                if Main.Position.Y == UDim.new(1, 1) or Main.Position.Y == UDim.new(0, -37) then
-                    if string.find(Position, 'bottom') then
-                        Utility:Tween(Main, {Position =  Main.Position + UDim2.new(0, 0, 0, 36)}, 0.25)
-        
-                        CommandInput.Text = ''
-                        
-                        task.wait(0.25)
-        
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 1}, 0.25)
-                                end
-        
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 1}, 0.25)
-                                end
-                            end
-                        end
-        
-                        task.wait(0.25)
-                        
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
-        
-                        task.wait(0.25)
-        
-                        CommandsHolder.Visible = false
-                    else
-                        Utility:Tween(Main, {Position = Main.Position + UDim2.new(0, 0, 0, -35)}, 0.25)
-        
-                        CommandInput.Text = ''
-                        
-                        task.wait(0.25)
-        
-                        for _, Instance in next, CommandsHolderScrolling:GetDescendants() do
-                            if not Instance:IsA('UIListLayout') and not Instance:IsA('TextButton') then
-                                if Instance:IsA('Frame') then
-                                    Utility:Tween(Instance, {BackgroundTransparency = 1}, 0.25)
-                                end
-        
-                                if Utility:HasProperty(Instance, 'TextTransparency') then
-                                    Utility:Tween(Instance, {TextTransparency = 1}, 0.25)
-                                end
-                            end
-                        end
-        
-                        task.wait(0.25)
-                        
-                        Utility:Tween(CommandsHolder, {BackgroundTransparency = 1}, 0.25)
-        
-                        task.wait(0.25)
-        
-                        CommandsHolder.Visible = false
-                    end
-                end
-            end
-        end)
-
-        CommandHolder.MouseEnter:Connect(function()
-            Utility:Tween(CommandHolder, {BackgroundColor3 = Utility:Lighten(Theme.BackgroundColor)}, 0.25)
-
-            CreateToolTip(ConstructString(true), ConstructString(false), true)
-        end)
-
-        CommandHolder.MouseLeave:Connect(function()
-            Utility:Tween(CommandHolder, {BackgroundColor3 = Theme.BackgroundColor}, 0.25)
-
-            CreateToolTip(nil, nil, false)
+        task.delay(duration, function()
+            Utility:Tween(notif, {BackgroundTransparency = 1}, 0.4)
+            Utility:Tween(notif.Title, {TextTransparency = 1}, 0.4)
+            Utility:Tween(notif.Text, {TextTransparency = 1}, 0.4)
+            task.wait(0.4)
+            notif:Destroy()
         end)
     end
 
-    return WindowFunctions
+    function Window:AddCommand(name, args, desc, callback)
+        Commands[name:lower()] = {
+            Arguments = args or {},
+            Description = desc or "",
+            Callback = callback
+        }
+
+        local function buildRichText()
+            local str = '<font color="rgb('..math.floor(Theme.PrimaryTextColor.R*255)..','..math.floor(Theme.PrimaryTextColor.G*255)..','..math.floor(Theme.PrimaryTextColor.B*255)..')">' .. name .. '</font> '
+            for _, arg in ipairs(args or {}) do
+                str = str .. '<font color="rgb('..math.floor(Theme.SecondaryTextColor.R*255)..','..math.floor(Theme.SecondaryTextColor.G*255)..','..math.floor(Theme.SecondaryTextColor.B*255)..')">{'
+                .. arg .. '}</font> '
+            end
+            str = str .. '<font color="rgb('..math.floor(Theme.AccentColor.R*255)..','..math.floor(Theme.AccentColor.G*255)..','..math.floor(Theme.AccentColor.B*255)..')">| </font>'
+            str = str .. '<font color="rgb('..math.floor(Theme.SecondaryTextColor.R*255)..','..math.floor(Theme.SecondaryTextColor.G*255)..','..math.floor(Theme.SecondaryTextColor.B*255)..')">' .. (desc or "") .. '</font>'
+            return str
+        end
+
+        local holder = Utility:Create("Frame", {
+            Parent = CommandsHolderScrolling,
+            BackgroundColor3 = Theme.BackgroundColor,
+            BackgroundTransparency = 0.25,
+            Name = name .. "CommandHolder",
+            Size = UDim2.new(0, 490, 0, 30)
+        }, {
+            Utility:Create("UICorner", {CornerRadius = UDim.new(0,5)}),
+            Utility:Create("TextLabel", {
+                Name = name .. "Text",
+                BackgroundTransparency = 1,
+                RichText = true,
+                Size = UDim2.new(1,0,1,0),
+                Font = Enum.Font.Gotham,
+                Text = buildRichText(),
+                TextColor3 = Theme.PrimaryTextColor,
+                TextSize = 15,
+                TextXAlignment = Enum.TextXAlignment.Left
+            }, {Utility:Create("UIPadding", {PaddingLeft = UDim.new(0,8)})}),
+            Utility:Create("TextButton", {
+                Name = name .. "Button",
+                Size = UDim2.new(1,0,1,0),
+                BackgroundTransparency = 1,
+                Text = ""
+            }, {Utility:Create("UICorner", {CornerRadius = UDim.new(0,5)})})
+        })
+
+        local btn = holder[name .. "Button"]
+
+        btn.MouseButton1Click:Connect(function()
+            Execute(name)
+        end)
+
+        holder.MouseEnter:Connect(function()
+            Utility:Tween(holder, {BackgroundColor3 = Utility:Lighten(Theme.BackgroundColor)}, 0.15)
+            CreateToolTip(buildRichText(), name .. " " .. table.concat(args or {}, " ") .. " | " .. (desc or ""), true)
+        end)
+
+        holder.MouseLeave:Connect(function()
+            Utility:Tween(holder, {BackgroundColor3 = Theme.BackgroundColor}, 0.15)
+            CreateToolTip(nil, nil, false)
+        end)
+
+        UpdateFrameSizes()
+    end
+
+    return Window
 end
+
 return Library
