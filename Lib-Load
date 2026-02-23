@@ -74,7 +74,7 @@ do
     function Utility:EnableDragging(Frame, Parent)
         local DraggingInput, StartPosition
         local DragStart = Vector3.new(0,0,0)
-        local Main = CoreGui:FindFirstChild('V0id Command UI Library').Main
+        local Main = CoreGui:FindFirstChild('Visual Command UI Library').Main
 
         local function Update(Input)
             local Delta = Input.Position - DragStart
