@@ -360,8 +360,12 @@ function Library:CreateWindow(Properties)
     local Main = Container.Main
     local MainStroke = Main.MainStroke
 
-    if Draggable then
+    local Main = Container.Main   -- or Container:WaitForChild("Main", 5)
+
+    if Draggable and Main then
         Utility:EnableDragging(Main, Main)
+    else
+        warn("[V0id] Dragging not enabled - Main frame missing")
     end
 
     MainStroke.Thickness = 0
