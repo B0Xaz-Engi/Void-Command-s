@@ -1,4 +1,4 @@
--- // Services
+if Draggable then-- // Services
 local CoreGui = game:GetService('CoreGui')
 local TweenService = game:GetService('TweenService')
 local UserInputService = game:GetService('UserInputService')
@@ -361,9 +361,8 @@ function Library:CreateWindow(Properties)
     local MainStroke = Main.MainStroke
 
     local Main = Container:FindFirstChild("Main")   -- or directly: local Main = Container.Main
-
     if Draggable then
-        Utility:EnableDragging(Main, Main)          -- pass the real reference you just created
+        Utility:EnableDragging(Main, Main)
     end
         warn("[V0id] Dragging not enabled - Main frame missing")
     end
