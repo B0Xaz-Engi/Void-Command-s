@@ -1,0 +1,703 @@
+local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/B0Xaz-Engi/Void-Command-s/refs/heads/main/Lib-Load', true))()
+local Window = Library:CreateWindow({
+    Name = 'Void Command UI Library',
+    IntroText = 'V0id Command UI Library',
+    IntroIcon = 'rbxassetid://10618644218',
+    IntroBlur = true,
+    IntroBlurIntensity = 15,
+    Theme = Library.Themes.dark,
+    Position = 'bottom',
+    Draggable = true,
+    Prefix = ';'
+})
+
+local Players = game:GetService('Players')
+local RunService = game:GetService('RunService')
+local UserInputService = game:GetService('UserInputService')
+local TeleportService = game:GetService('TeleportService')
+local LocalPlayer = Players.LocalPlayer
+
+local flyConnection = nil
+local noclipConnection = nil
+local infiniteJumpConnection = nil
+local loopKillConnection = nil
+local followConnection = nil
+local orbitConnection = nil
+local antiAFKConnection = nil
+
+local CommandRegistry = {}
+local currentPrefix = ';'
+
+local originalAddCommand = Window.AddCommand
+Window.AddCommand = function(self, name, args, desc, callback)
+    CommandRegistry[name:lower()] = callback
+    return originalAddCommand(self, name, args, desc, callback)
+end
+
+local originalChangePrefix = Window.ChangePrefix
+Window.ChangePrefix = function(self, newPrefix)
+    currentPrefix = newPrefix
+    return originalChangePrefix(self, newPrefix)
+end
+
+local function parseAndExecute(message)
+    if message:sub(1, #currentPrefix) ~= currentPrefix then return end
+    message = message:sub(#currentPrefix + 1)
+    local parts = message:split(' ')
+    local commandName = parts[1]:lower()
+    local arguments = {}
+    for i = 2, #parts do
+        table.insert(arguments, parts[i])
+    end
+    if CommandRegistry[commandName] then
+        CommandRegistry[commandName](arguments, LocalPlayer)
+    end
+end
+
+LocalPlayer.Chatted:Connect(function(message)
+    parseAndExecute(message)
+end)
+
+local function getCharacter(speaker)
+    return speaker and speaker.Character
+end
+
+local function getHumanoid(speaker)
+    local char = getCharacter(speaker)
+    return char and char:FindFirstChildOfClass('Humanoid')
+end
+
+local function getHRP(speaker)
+    local char = getCharacter(speaker)
+    return char and char:FindFirstChild('HumanoidRootPart')
+end
+
+local function findPlayer(name)
+    name = name:lower()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Name:lower():find(name) or p.DisplayName:lower():find(name) then
+            return p
+        end
+    end
+end
+
+Window:AddCommand('Print', {'String'}, 'Prints A String.', function(Arguments, Speaker)
+    print(Arguments[1])
+end)
+
+Window:AddCommand('SetPrefix', {'New Prefix'}, 'Changes The Prefix.', function(Arguments, Speaker)
+    currentPrefix = Arguments[1]
+    Window:ChangePrefix(Arguments[1])
+end)
+
+local RayfieldThemes = {
+    Default = {
+        BackgroundColor = Color3.fromRGB(25, 25, 25),
+        SecondaryColor = Color3.fromRGB(35, 35, 35),
+        AccentColor = Color3.fromRGB(50, 138, 220),
+        PrimaryTextColor = Color3.fromRGB(240, 240, 240),
+        SecondaryTextColor = Color3.fromRGB(178, 178, 178)
+    },
+    AmberGlow = {
+        BackgroundColor = Color3.fromRGB(45, 30, 20),
+        SecondaryColor = Color3.fromRGB(60, 45, 35),
+        AccentColor = Color3.fromRGB(250, 150, 75),
+        PrimaryTextColor = Color3.fromRGB(255, 245, 230),
+        SecondaryTextColor = Color3.fromRGB(190, 150, 130)
+    },
+    Amethyst = {
+        BackgroundColor = Color3.fromRGB(30, 20, 40),
+        SecondaryColor = Color3.fromRGB(45, 30, 60),
+        AccentColor = Color3.fromRGB(130, 80, 180),
+        PrimaryTextColor = Color3.fromRGB(240, 240, 240),
+        SecondaryTextColor = Color3.fromRGB(178, 150, 200)
+    },
+    Bloom = {
+        BackgroundColor = Color3.fromRGB(255, 240, 245),
+        SecondaryColor = Color3.fromRGB(255, 235, 240),
+        AccentColor = Color3.fromRGB(250, 160, 180),
+        PrimaryTextColor = Color3.fromRGB(60, 40, 50),
+        SecondaryTextColor = Color3.fromRGB(170, 130, 140)
+    },
+    DarkBlue = {
+        BackgroundColor = Color3.fromRGB(20, 25, 30),
+        SecondaryColor = Color3.fromRGB(30, 35, 40),
+        AccentColor = Color3.fromRGB(0, 120, 210),
+        PrimaryTextColor = Color3.fromRGB(230, 230, 230),
+        SecondaryTextColor = Color3.fromRGB(150, 150, 160)
+    },
+    Green = {
+        BackgroundColor = Color3.fromRGB(235, 245, 235),
+        SecondaryColor = Color3.fromRGB(225, 240, 225),
+        AccentColor = Color3.fromRGB(70, 130, 70),
+        PrimaryTextColor = Color3.fromRGB(30, 60, 30),
+        SecondaryTextColor = Color3.fromRGB(120, 140, 120)
+    },
+    Light = {
+        BackgroundColor = Color3.fromRGB(245, 245, 245),
+        SecondaryColor = Color3.fromRGB(240, 240, 240),
+        AccentColor = Color3.fromRGB(100, 150, 200),
+        PrimaryTextColor = Color3.fromRGB(40, 40, 40),
+        SecondaryTextColor = Color3.fromRGB(140, 140, 140)
+    },
+    Ocean = {
+        BackgroundColor = Color3.fromRGB(20, 30, 30),
+        SecondaryColor = Color3.fromRGB(30, 50, 50),
+        AccentColor = Color3.fromRGB(0, 140, 140),
+        PrimaryTextColor = Color3.fromRGB(230, 240, 240),
+        SecondaryTextColor = Color3.fromRGB(140, 160, 160)
+    },
+    Serenity = {
+        BackgroundColor = Color3.fromRGB(240, 245, 250),
+        SecondaryColor = Color3.fromRGB(210, 220, 230),
+        AccentColor = Color3.fromRGB(70, 130, 180),
+        PrimaryTextColor = Color3.fromRGB(50, 55, 60),
+        SecondaryTextColor = Color3.fromRGB(150, 150, 150)
+    }
+}
+
+Window:AddCommand('SetTheme', {'Theme'}, 'Changes the UI theme. Options: Default, AmberGlow, Amethyst, Bloom, DarkBlue, Green, Light, Ocean, Serenity.', function(Arguments, Speaker)
+    local themeName = Arguments[1]
+    local theme = RayfieldThemes[themeName]
+    if not theme then
+        Window:CreateNotification('SetTheme', 'Unknown theme. Options: Default, AmberGlow, Amethyst, Bloom, DarkBlue, Green, Light, Ocean, Serenity.', 5)
+        return
+    end
+    Window:AddTheme(themeName, theme)
+    Window:ChangeTheme(themeName)
+    Window:CreateNotification('SetTheme', 'Theme changed to ' .. themeName .. '.', 3)
+end)
+
+Window:AddCommand('HelloWorld', {}, 'Prints Hello World.', function(Arguments, Speaker)
+    print('Hello World')
+end)
+
+Window:AddCommand('Notify', {}, 'Creates A Notification.', function(Arguments, Speaker)
+    Window:CreateNotification('V0id Command UI Library', 'Notification', 5)
+end)
+
+Window:AddCommand('Speed', {'WalkSpeed'}, 'Sets your walkspeed.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then hum.WalkSpeed = tonumber(Arguments[1]) or 16 end
+end)
+
+Window:AddCommand('Jump', {'JumpPower'}, 'Sets your jump power.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then hum.JumpPower = tonumber(Arguments[1]) or 50 end
+end)
+
+Window:AddCommand('Fly', {}, 'Enables fly.', function(Arguments, Speaker)
+    local hrp = getHRP(Speaker)
+    local hum = getHumanoid(Speaker)
+    if not hrp or not hum then return end
+
+    local bv = Instance.new('BodyVelocity', hrp)
+    bv.Velocity = Vector3.zero
+    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    local bg = Instance.new('BodyGyro', hrp)
+    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+    bg.D = 100
+
+    local flySpeed = 50
+    hum.PlatformStand = true
+
+    flyConnection = RunService.RenderStepped:Connect(function()
+        local cam = workspace.CurrentCamera
+        local direction = Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then direction = direction - Vector3.new(0,1,0) end
+        bv.Velocity = direction * flySpeed
+        bg.CFrame = cam.CFrame
+    end)
+
+    Window:CreateNotification('Fly', 'Fly enabled. Use ;unfly to disable.', 3)
+end)
+
+Window:AddCommand('Unfly', {}, 'Disables fly.', function(Arguments, Speaker)
+    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+    local hrp = getHRP(Speaker)
+    local hum = getHumanoid(Speaker)
+    if hrp then
+        for _, v in pairs(hrp:GetChildren()) do
+            if v:IsA('BodyVelocity') or v:IsA('BodyGyro') then v:Destroy() end
+        end
+    end
+    if hum then hum.PlatformStand = false end
+    Window:CreateNotification('Fly', 'Fly disabled.', 3)
+end)
+
+Window:AddCommand('Noclip', {}, 'Enables noclip.', function(Arguments, Speaker)
+    local char = getCharacter(Speaker)
+    if not char then return end
+    noclipConnection = RunService.Stepped:Connect(function()
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA('BasePart') and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end)
+    Window:CreateNotification('Noclip', 'Noclip enabled. Use ;clip to disable.', 3)
+end)
+
+Window:AddCommand('Clip', {}, 'Disables noclip.', function(Arguments, Speaker)
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    Window:CreateNotification('Noclip', 'Noclip disabled.', 3)
+end)
+
+Window:AddCommand('InfiniteJump', {}, 'Enables infinite jump.', function(Arguments, Speaker)
+    infiniteJumpConnection = UserInputService.JumpRequest:Connect(function()
+        local hum = getHumanoid(Speaker)
+        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end)
+    Window:CreateNotification('Infinite Jump', 'Infinite jump enabled. Use ;noinfjump to disable.', 3)
+end)
+
+Window:AddCommand('NoInfJump', {}, 'Disables infinite jump.', function(Arguments, Speaker)
+    if infiniteJumpConnection then infiniteJumpConnection:Disconnect() infiniteJumpConnection = nil end
+    Window:CreateNotification('Infinite Jump', 'Infinite jump disabled.', 3)
+end)
+
+Window:AddCommand('Teleport', {'X', 'Y', 'Z'}, 'Teleports to coordinates.', function(Arguments, Speaker)
+    local hrp = getHRP(Speaker)
+    if hrp then
+        hrp.CFrame = CFrame.new(tonumber(Arguments[1]) or 0, tonumber(Arguments[2]) or 0, tonumber(Arguments[3]) or 0)
+    end
+end)
+
+Window:AddCommand('Goto', {'Player'}, 'Teleports you to a player.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1])
+    local hrp = getHRP(Speaker)
+    if target and hrp then
+        local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
+        if tHRP then hrp.CFrame = tHRP.CFrame + Vector3.new(3, 0, 0) end
+    end
+end)
+
+Window:AddCommand('Bring', {'Player'}, 'Brings a player to you.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1])
+    local hrp = getHRP(Speaker)
+    if target and hrp then
+        local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
+        if tHRP then tHRP.CFrame = hrp.CFrame + Vector3.new(3, 0, 0) end
+    end
+end)
+
+Window:AddCommand('Sit', {}, 'Makes your character sit.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then hum.Sit = true end
+end)
+
+Window:AddCommand('Unsit', {}, 'Makes your character stop sitting.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then hum.Sit = false end
+end)
+
+Window:AddCommand('Kill', {}, 'Kills your character.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then hum.Health = 0 end
+end)
+
+Window:AddCommand('Respawn', {}, 'Respawns your character.', function(Arguments, Speaker)
+    Speaker:LoadCharacter()
+end)
+
+Window:AddCommand('Health', {'Amount'}, 'Sets your health.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then hum.Health = tonumber(Arguments[1]) or 100 end
+end)
+
+Window:AddCommand('MaxHealth', {'Amount'}, 'Sets your max health.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then hum.MaxHealth = tonumber(Arguments[1]) or 100 end
+end)
+
+Window:AddCommand('God', {}, 'Sets health to infinite.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then
+        hum.MaxHealth = math.huge
+        hum.Health = math.huge
+    end
+    Window:CreateNotification('God Mode', 'God mode enabled.', 3)
+end)
+
+Window:AddCommand('Ungod', {}, 'Resets health to 100.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then
+        hum.MaxHealth = 100
+        hum.Health = 100
+    end
+    Window:CreateNotification('God Mode', 'God mode disabled.', 3)
+end)
+
+Window:AddCommand('Freeze', {}, 'Freezes your character.', function(Arguments, Speaker)
+    local hrp = getHRP(Speaker)
+    if hrp then hrp.Anchored = true end
+end)
+
+Window:AddCommand('Unfreeze', {}, 'Unfreezes your character.', function(Arguments, Speaker)
+    local hrp = getHRP(Speaker)
+    if hrp then hrp.Anchored = false end
+end)
+
+Window:AddCommand('DropHats', {}, 'Drops your accessories.', function(Arguments, Speaker)
+    local char = getCharacter(Speaker)
+    if not char then return end
+    for _, v in pairs(char:GetChildren()) do
+        if v:IsA('Accessory') then v.Parent = workspace end
+    end
+end)
+
+Window:AddCommand('DelHats', {}, 'Deletes your accessories.', function(Arguments, Speaker)
+    local char = getCharacter(Speaker)
+    if not char then return end
+    for _, v in pairs(char:GetChildren()) do
+        if v:IsA('Accessory') then v:Destroy() end
+    end
+end)
+
+Window:AddCommand('DropTools', {}, 'Drops all tools from backpack.', function(Arguments, Speaker)
+    for _, v in pairs(Speaker.Backpack:GetChildren()) do
+        v.Parent = workspace
+    end
+    local char = getCharacter(Speaker)
+    if char then
+        for _, v in pairs(char:GetChildren()) do
+            if v:IsA('Tool') then v.Parent = workspace end
+        end
+    end
+end)
+
+Window:AddCommand('DelTools', {}, 'Deletes all tools.', function(Arguments, Speaker)
+    for _, v in pairs(Speaker.Backpack:GetChildren()) do
+        v:Destroy()
+    end
+end)
+
+Window:AddCommand('Anim', {'AnimationID'}, 'Plays an animation by ID.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if not hum then return end
+    local anim = Instance.new('Animation')
+    anim.AnimationId = 'rbxassetid://' .. (Arguments[1] or '507770453')
+    local track = hum:LoadAnimation(anim)
+    track:Play()
+end)
+
+Window:AddCommand('AnimSpeed', {'Speed'}, 'Sets animation speed.', function(Arguments, Speaker)
+    local hum = getHumanoid(Speaker)
+    if hum then
+        for _, track in pairs(hum:GetPlayingAnimationTracks()) do
+            track:AdjustSpeed(tonumber(Arguments[1]) or 1)
+        end
+    end
+end)
+
+Window:AddCommand('Attach', {'Player'}, 'Attaches you to a player.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1])
+    local hrp = getHRP(Speaker)
+    local tHRP = target and target.Character and target.Character:FindFirstChild('HumanoidRootPart')
+    if hrp and tHRP then
+        local weld = Instance.new('WeldConstraint')
+        weld.Part0 = hrp
+        weld.Part1 = tHRP
+        weld.Parent = hrp
+    end
+end)
+
+Window:AddCommand('Unattach', {}, 'Removes all welds from HRP.', function(Arguments, Speaker)
+    local hrp = getHRP(Speaker)
+    if hrp then
+        for _, v in pairs(hrp:GetChildren()) do
+            if v:IsA('WeldConstraint') then v:Destroy() end
+        end
+    end
+end)
+
+Window:AddCommand('Gravity', {'Value'}, 'Sets gravity.', function(Arguments, Speaker)
+    workspace.Gravity = tonumber(Arguments[1]) or 196.2
+end)
+
+Window:AddCommand('Explode', {}, 'Creates an explosion at your position.', function(Arguments, Speaker)
+    local hrp = getHRP(Speaker)
+    if hrp then
+        local explosion = Instance.new('Explosion')
+        explosion.Position = hrp.Position
+        explosion.Parent = workspace
+    end
+end)
+
+Window:AddCommand('Fling', {'Player'}, 'Flings a player.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1])
+    local tHRP = target and target.Character and target.Character:FindFirstChild('HumanoidRootPart')
+    if tHRP then
+        local bv = Instance.new('BodyVelocity')
+        bv.Velocity = Vector3.new(math.random(-500,500), 800, math.random(-500,500))
+        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        bv.Parent = tHRP
+        game:GetService('Debris'):AddItem(bv, 0.1)
+    end
+end)
+
+Window:AddCommand('Spin', {}, 'Makes you spin rapidly.', function(Arguments, Speaker)
+    local hrp = getHRP(Speaker)
+    if hrp then
+        local bg = Instance.new('BodyAngularVelocity')
+        bg.AngularVelocity = Vector3.new(0, 100, 0)
+        bg.MaxTorque = Vector3.new(0, 1e9, 0)
+        bg.Parent = hrp
+    end
+end)
+
+Window:AddCommand('Unspin', {}, 'Stops spinning.', function(Arguments, Speaker)
+    local hrp = getHRP(Speaker)
+    if hrp then
+        for _, v in pairs(hrp:GetChildren()) do
+            if v:IsA('BodyAngularVelocity') then v:Destroy() end
+        end
+    end
+end)
+
+Window:AddCommand('AntiAFK', {}, 'Enables anti-AFK.', function(Arguments, Speaker)
+    if antiAFKConnection then antiAFKConnection:Disconnect() end
+    local vu = game:GetService('VirtualUser')
+    antiAFKConnection = LocalPlayer.Idled:Connect(function()
+        vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        wait(1)
+        vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    end)
+    Window:CreateNotification('Anti-AFK', 'Anti-AFK enabled.', 3)
+end)
+
+Window:AddCommand('NoAntiAFK', {}, 'Disables anti-AFK.', function(Arguments, Speaker)
+    if antiAFKConnection then antiAFKConnection:Disconnect() antiAFKConnection = nil end
+    Window:CreateNotification('Anti-AFK', 'Anti-AFK disabled.', 3)
+end)
+
+Window:AddCommand('Follow', {'Player'}, 'Follows a player.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1])
+    if not target then return end
+    if followConnection then followConnection:Disconnect() end
+    followConnection = RunService.Heartbeat:Connect(function()
+        local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
+        local hum = getHumanoid(Speaker)
+        if tHRP and hum then hum:MoveTo(tHRP.Position) end
+    end)
+    Window:CreateNotification('Follow', 'Following ' .. target.Name .. '. Use ;unfollow to stop.', 3)
+end)
+
+Window:AddCommand('Unfollow', {}, 'Stops following.', function(Arguments, Speaker)
+    if followConnection then followConnection:Disconnect() followConnection = nil end
+    Window:CreateNotification('Follow', 'Stopped following.', 3)
+end)
+
+Window:AddCommand('Orbit', {'Player'}, 'Orbits around a player.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1])
+    if not target then return end
+    if orbitConnection then orbitConnection:Disconnect() end
+    local angle = 0
+    orbitConnection = RunService.Heartbeat:Connect(function(dt)
+        local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
+        local hrp = getHRP(Speaker)
+        if tHRP and hrp then
+            angle = angle + dt * 2
+            local x = tHRP.Position.X + math.cos(angle) * 10
+            local z = tHRP.Position.Z + math.sin(angle) * 10
+            hrp.CFrame = CFrame.new(x, tHRP.Position.Y, z)
+        end
+    end)
+    Window:CreateNotification('Orbit', 'Orbiting ' .. target.Name .. '. Use ;unorbit to stop.', 3)
+end)
+
+Window:AddCommand('Unorbit', {}, 'Stops orbiting.', function(Arguments, Speaker)
+    if orbitConnection then orbitConnection:Disconnect() orbitConnection = nil end
+    Window:CreateNotification('Orbit', 'Stopped orbiting.', 3)
+end)
+
+Window:AddCommand('LoopKill', {'Player'}, 'Loops killing a player.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1])
+    if not target then return end
+    if loopKillConnection then loopKillConnection:Disconnect() end
+    loopKillConnection = RunService.Heartbeat:Connect(function()
+        local tHum = target.Character and target.Character:FindFirstChildOfClass('Humanoid')
+        if tHum then tHum.Health = 0 end
+    end)
+    Window:CreateNotification('LoopKill', 'Loop killing ' .. target.Name .. '. Use ;unloopkill to stop.', 3)
+end)
+
+Window:AddCommand('UnloopKill', {}, 'Stops loop killing.', function(Arguments, Speaker)
+    if loopKillConnection then loopKillConnection:Disconnect() loopKillConnection = nil end
+    Window:CreateNotification('LoopKill', 'Stopped loop killing.', 3)
+end)
+
+Window:AddCommand('BreakLoops', {}, 'Stops all active loops.', function(Arguments, Speaker)
+    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    if infiniteJumpConnection then infiniteJumpConnection:Disconnect() infiniteJumpConnection = nil end
+    if loopKillConnection then loopKillConnection:Disconnect() loopKillConnection = nil end
+    if followConnection then followConnection:Disconnect() followConnection = nil end
+    if orbitConnection then orbitConnection:Disconnect() orbitConnection = nil end
+    if antiAFKConnection then antiAFKConnection:Disconnect() antiAFKConnection = nil end
+    local hum = getHumanoid(Speaker)
+    if hum then hum.PlatformStand = false end
+    local hrp = getHRP(Speaker)
+    if hrp then
+        for _, v in pairs(hrp:GetChildren()) do
+            if v:IsA('BodyMover') then v:Destroy() end
+        end
+    end
+    Window:CreateNotification('BreakLoops', 'All loops stopped.', 3)
+end)
+
+Window:AddCommand('Ping', {}, 'Prints your ping.', function(Arguments, Speaker)
+    print('Ping: ' .. math.floor(LocalPlayer:GetNetworkPing() * 1000) .. 'ms')
+end)
+
+Window:AddCommand('Players', {}, 'Lists all players in the server.', function(Arguments, Speaker)
+    for _, p in pairs(Players:GetPlayers()) do
+        print(p.Name .. ' (' .. p.DisplayName .. ')')
+    end
+end)
+
+Window:AddCommand('ID', {'Player'}, 'Prints a player\'s user ID.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1]) or Speaker
+    print(target.UserId)
+end)
+
+Window:AddCommand('Age', {'Player'}, 'Prints a player\'s account age.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1]) or Speaker
+    print(target.AccountAge .. ' days old')
+end)
+
+Window:AddCommand('Team', {'Player'}, 'Prints a player\'s team.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1]) or Speaker
+    print(target.Team and target.Team.Name or 'No team')
+end)
+
+Window:AddCommand('Fullbright', {}, 'Sets max brightness.', function(Arguments, Speaker)
+    game.Lighting.Brightness = 2
+    game.Lighting.ClockTime = 14
+    game.Lighting.FogEnd = 100000
+    game.Lighting.GlobalShadows = false
+    game.Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+    game.Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+end)
+
+Window:AddCommand('Unfullbright', {}, 'Resets lighting to default.', function(Arguments, Speaker)
+    game.Lighting.Brightness = 1
+    game.Lighting.ClockTime = 14
+    game.Lighting.FogEnd = 100000
+    game.Lighting.GlobalShadows = true
+    game.Lighting.Ambient = Color3.fromRGB(70, 70, 70)
+    game.Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+end)
+
+Window:AddCommand('Time', {'TimeOfDay'}, 'Sets the time of day (0-24).', function(Arguments, Speaker)
+    game.Lighting.ClockTime = tonumber(Arguments[1]) or 12
+end)
+
+Window:AddCommand('Day', {}, 'Sets time to day.', function(Arguments, Speaker)
+    game.Lighting.ClockTime = 14
+end)
+
+Window:AddCommand('Night', {}, 'Sets time to night.', function(Arguments, Speaker)
+    game.Lighting.ClockTime = 0
+end)
+
+Window:AddCommand('Brightness', {'Value'}, 'Sets lighting brightness.', function(Arguments, Speaker)
+    game.Lighting.Brightness = tonumber(Arguments[1]) or 1
+end)
+
+Window:AddCommand('Fog', {'End'}, 'Sets fog end distance.', function(Arguments, Speaker)
+    game.Lighting.FogEnd = tonumber(Arguments[1]) or 100000
+end)
+
+Window:AddCommand('NoFog', {}, 'Removes fog.', function(Arguments, Speaker)
+    game.Lighting.FogEnd = 100000
+    game.Lighting.FogStart = 0
+end)
+
+Window:AddCommand('Ambient', {'R', 'G', 'B'}, 'Sets ambient lighting color.', function(Arguments, Speaker)
+    game.Lighting.Ambient = Color3.fromRGB(
+        tonumber(Arguments[1]) or 0,
+        tonumber(Arguments[2]) or 0,
+        tonumber(Arguments[3]) or 0
+    )
+end)
+
+Window:AddCommand('CameraLock', {}, 'Locks camera to first person.', function(Arguments, Speaker)
+    LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+end)
+
+Window:AddCommand('CameraUnlock', {}, 'Unlocks camera.', function(Arguments, Speaker)
+    LocalPlayer.CameraMode = Enum.CameraMode.Classic
+end)
+
+Window:AddCommand('FOV', {'Value'}, 'Sets camera FOV.', function(Arguments, Speaker)
+    workspace.CurrentCamera.FieldOfView = tonumber(Arguments[1]) or 70
+end)
+
+Window:AddCommand('Zoom', {'Value'}, 'Sets max zoom distance.', function(Arguments, Speaker)
+    LocalPlayer.CameraMaxZoomDistance = tonumber(Arguments[1]) or 400
+end)
+
+Window:AddCommand('Rejoin', {}, 'Rejoins the current game.', function(Arguments, Speaker)
+    TeleportService:Teleport(game.PlaceId, Speaker)
+end)
+
+Window:AddCommand('ServerHop', {}, 'Hops to a new server.', function(Arguments, Speaker)
+    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Speaker)
+end)
+
+Window:AddCommand('ExecScript', {'URL'}, 'Loads and executes a script from a URL.', function(Arguments, Speaker)
+    loadstring(game:HttpGet(Arguments[1], true))()
+end)
+
+Window:AddCommand('ClearChat', {}, 'Clears the chat log.', function(Arguments, Speaker)
+    local ChatGui = LocalPlayer.PlayerGui:FindFirstChild('Chat')
+    if ChatGui then
+        for _, v in pairs(ChatGui:GetDescendants()) do
+            if v:IsA('TextLabel') then v.Text = '' end
+        end
+    end
+end)
+
+Window:AddCommand('Chat', {'Message'}, 'Sends a chat message.', function(Arguments, Speaker)
+    local ChatEvents = game:GetService('ReplicatedStorage'):FindFirstChild('DefaultChatSystemChatEvents')
+    if ChatEvents then
+        ChatEvents.SayMessageRequest:FireServer(Arguments[1], 'All')
+    end
+end)
+
+Window:AddCommand('Desc', {'Player'}, 'Prints a player\'s profile URL.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1]) or Speaker
+    print('https://www.roblox.com/users/' .. target.UserId .. '/profile')
+end)
+
+Window:AddCommand('Kick', {'Player'}, 'Kicks a player.', function(Arguments, Speaker)
+    local target = findPlayer(Arguments[1])
+    if target then target:Kick('You have been kicked.') end
+end)
+
+Window:AddCommand('Disconnect', {}, 'Disconnects you from the server.', function(Arguments, Speaker)
+    LocalPlayer:Kick('Disconnected by command.')
+end)
+
+Window:AddCommand('BTools', {}, 'Gives you building tools.', function(Arguments, Speaker)
+    local tools = {'Clone', 'Delete', 'Move'}
+    for _, name in pairs(tools) do
+        local tool = Instance.new('Tool')
+        tool.Name = name .. ' Tool'
+        tool.Parent = Speaker.Backpack
+    end
+end)
+
+Window:AddTheme('test', {
+    BackgroundColor = Color3.fromRGB(0, 255, 255),
+    SecondaryColor = Color3.fromRGB(225, 225, 225),
+    AccentColor = Color3.fromRGB(125, 125, 125),
+    PrimaryTextColor = Color3.fromRGB(0, 0, 0),
+    SecondaryTextColor = Color3.fromRGB(75, 75, 75)
+})
