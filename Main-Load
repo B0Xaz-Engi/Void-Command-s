@@ -1,704 +1,1357 @@
 local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/B0Xaz-Engi/Void-Command-s/refs/heads/main/Lib-Load', true))()
 print("Library loaded:", Library)
+
 local Window = Library:CreateWindow({
-    Name = 'V0id Command UI Library',
-    IntroText = 'V0id Command UI Library',
-    IntroIcon = 'rbxassetid://10618644218',
-    IntroBlur = true,
+    Name               = 'V0id Command UI Library',
+    IntroText          = 'V0id Command UI Library',
+    IntroIcon          = 'rbxassetid://10618644218',
+    IntroBlur          = true,
     IntroBlurIntensity = 15,
-    Theme = Library.Themes.dark,
-    Position = 'bottom',
-    Draggable = true,
-    Prefix = ';'
+    Theme              = Library.Themes.dark,
+    Position           = 'bottom',
+    Draggable          = true,
+    Prefix             = ';'
 })
 
-local Players = game:GetService('Players')
-local RunService = game:GetService('RunService')
+-- ============================================================
+-- SERVICES
+-- ============================================================
+local Players          = game:GetService('Players')
+local RunService       = game:GetService('RunService')
 local UserInputService = game:GetService('UserInputService')
-local TeleportService = game:GetService('TeleportService')
-local LocalPlayer = Players.LocalPlayer
+local TeleportService  = game:GetService('TeleportService')
+local VirtualUser      = game:GetService('VirtualUser')
+local Lighting         = game:GetService('Lighting')
+local LocalPlayer      = Players.LocalPlayer
 
-local flyConnection = nil
-local noclipConnection = nil
-local infiniteJumpConnection = nil
-local loopKillConnection = nil
-local followConnection = nil
-local orbitConnection = nil
-local antiAFKConnection = nil
+-- ============================================================
+-- STATE
+-- ============================================================
+local flyConn, noclipConn, infjumpConn, loopKillConn     = nil,nil,nil,nil
+local followConn, orbitConn, antiAFKConn, loopGotoConn   = nil,nil,nil,nil
+local loopBringConn, loopSpeedConn, loopJumpConn         = nil,nil,nil
+local wallWalkConn, autoClickConn, spamConn              = nil,nil,nil
+local loopXrayConn, loopFBConn, loopNoBguiConn           = nil,nil,nil
+local grabToolsConn, autoJumpConn, flyJumpConn           = nil,nil,nil
+local swimConn, tpWalkConn, cflyConn, vflyConn           = nil,nil,nil,nil
+local stareConn, antiVoidConn, wallTpConn                = nil,nil,nil
+local flySpeed, cflySpeed, vflySpeed, tweenSpd           = 50, 50, 50, 1
+local waypoints  = {}
+local spawnPoint = nil
+local lastDeath  = nil
+local espObjs    = {}
 
-local CommandRegistry = {}
-local currentPrefix = ';'
+-- ============================================================
+-- HELPERS
+-- ============================================================
+local function C(p)   return p and p.Character end
+local function H(p)   local c=C(p); return c and c:FindFirstChildOfClass('Humanoid') end
+local function R(p)   local c=C(p); return c and c:FindFirstChild('HumanoidRootPart') end
+local function N(t,m,d) Window:CreateNotification(t,m,d or 3) end
+local function Kill(c) if c then c:Disconnect() end return nil end
 
-local originalAddCommand = Window.AddCommand
-Window.AddCommand = function(self, name, args, desc, callback)
-    CommandRegistry[name:lower()] = callback
-    return originalAddCommand(self, name, args, desc, callback)
-end
-
-local originalChangePrefix = Window.ChangePrefix
-Window.ChangePrefix = function(self, newPrefix)
-    currentPrefix = newPrefix
-    return originalChangePrefix(self, newPrefix)
-end
-
-local function parseAndExecute(message)
-    if message:sub(1, #currentPrefix) ~= currentPrefix then return end
-    message = message:sub(#currentPrefix + 1)
-    local parts = message:split(' ')
-    local commandName = parts[1]:lower()
-    local arguments = {}
-    for i = 2, #parts do
-        table.insert(arguments, parts[i])
-    end
-    if CommandRegistry[commandName] then
-        CommandRegistry[commandName](arguments, LocalPlayer)
-    end
-end
-
-LocalPlayer.Chatted:Connect(function(message)
-    parseAndExecute(message)
-end)
-
-local function getCharacter(speaker)
-    return speaker and speaker.Character
-end
-
-local function getHumanoid(speaker)
-    local char = getCharacter(speaker)
-    return char and char:FindFirstChildOfClass('Humanoid')
-end
-
-local function getHRP(speaker)
-    local char = getCharacter(speaker)
-    return char and char:FindFirstChild('HumanoidRootPart')
-end
-
+-- ============================================================
+-- PLAYER FINDER - fuzzy/partial match, picks closest name
+-- ============================================================
 local function findPlayer(name)
-    name = name:lower()
+    if not name or name == '' then return nil end
+    local query = name:lower()
+    local bestPlayer = nil
+    local bestScore  = math.huge
+
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Name:lower():find(name) or p.DisplayName:lower():find(name) then
-            return p
+        local uname = p.Name:lower()
+        local dname = p.DisplayName:lower()
+
+        -- Exact match wins immediately
+        if uname == query or dname == query then return p end
+
+        -- Starts-with match (score = position 1, prefer shorter names)
+        local uStart = uname:sub(1, #query) == query
+        local dStart = dname:sub(1, #query) == query
+        if uStart or dStart then
+            local score = #uname  -- shorter name = better score
+            if score < bestScore then bestScore = score; bestPlayer = p end
         end
+
+        -- Contains match (fallback, penalised)
+        local uContains = uname:find(query, 1, true)
+        local dContains = dname:find(query, 1, true)
+        if (uContains or dContains) and bestScore == math.huge then
+            local score = #uname + 100
+            if score < bestScore then bestScore = score; bestPlayer = p end
+        end
+    end
+
+    return bestPlayer
+end
+
+-- Track last death
+LocalPlayer.CharacterRemoving:Connect(function(c)
+    local r = c:FindFirstChild('HumanoidRootPart')
+    if r then lastDeath = r.CFrame end
+end)
+
+-- ============================================================
+-- OWN COMMAND REGISTRY
+-- We intercept Window:AddCommand to store every callback
+-- ourselves. This means our chat hook can call them directly
+-- without relying on any library method like ExecuteCommand
+-- which may not exist.
+-- ============================================================
+local prefix   = ';'
+local Registry = {}   -- Registry['goto'] = callback
+
+local _libAddCommand = Window.AddCommand
+Window.AddCommand = function(self, cmdName, args, desc, callback)
+    Registry[cmdName:lower()] = callback
+    return _libAddCommand(self, cmdName, args, desc, callback)
+end
+
+-- ============================================================
+-- CHAT EXECUTION ENGINE
+-- Parses a raw chat string and runs the matching command.
+-- ============================================================
+local function execute(msg)
+    if type(msg) ~= 'string' then return end
+    msg = msg:match('^%s*(.-)%s*$') -- trim whitespace
+    if msg:sub(1, #prefix) ~= prefix then return end
+    msg = msg:sub(#prefix + 1)
+
+    local parts = {}
+    for w in msg:gmatch('%S+') do parts[#parts + 1] = w end
+    if #parts == 0 then return end
+
+    local cmd  = parts[1]:lower()
+    local args = {}
+    for i = 2, #parts do args[#args + 1] = parts[i] end
+
+    local fn = Registry[cmd]
+    if fn then
+        local ok, err = pcall(fn, args, LocalPlayer)
+        if not ok then
+            N('Error', '[' .. cmd .. ']: ' .. tostring(err), 5)
+            warn('[V0id cmd error] ' .. cmd .. ': ' .. tostring(err))
+        end
+    else
+        -- silent fail for unknown commands so normal chat works
     end
 end
 
-Window:AddCommand('Print', {'String'}, 'Prints A String.', function(Arguments, Speaker)
-    print(Arguments[1])
+-- Hook 1: LocalPlayer.Chatted (fires on server-confirmed messages)
+LocalPlayer.Chatted:Connect(function(msg)
+    execute(msg)
 end)
 
-Window:AddCommand('SetPrefix', {'New Prefix'}, 'Changes The Prefix.', function(Arguments, Speaker)
-    currentPrefix = Arguments[1]
-    Window:ChangePrefix(Arguments[1])
-end)
+-- Hook 2: TextBox Enter press — fires BEFORE the server sees it
+-- so commands work even when Chatted is blocked/delayed
+task.spawn(function()
+    -- Wait a moment for PlayerGui to populate
+    task.wait(2)
+    local pg = LocalPlayer:WaitForChild('PlayerGui', 10)
+    if not pg then return end
 
-local RayfieldThemes = {
-    Default = {
-        BackgroundColor = Color3.fromRGB(25, 25, 25),
-        SecondaryColor = Color3.fromRGB(35, 35, 35),
-        AccentColor = Color3.fromRGB(50, 138, 220),
-        PrimaryTextColor = Color3.fromRGB(240, 240, 240),
-        SecondaryTextColor = Color3.fromRGB(178, 178, 178)
-    },
-    AmberGlow = {
-        BackgroundColor = Color3.fromRGB(45, 30, 20),
-        SecondaryColor = Color3.fromRGB(60, 45, 35),
-        AccentColor = Color3.fromRGB(250, 150, 75),
-        PrimaryTextColor = Color3.fromRGB(255, 245, 230),
-        SecondaryTextColor = Color3.fromRGB(190, 150, 130)
-    },
-    Amethyst = {
-        BackgroundColor = Color3.fromRGB(30, 20, 40),
-        SecondaryColor = Color3.fromRGB(45, 30, 60),
-        AccentColor = Color3.fromRGB(130, 80, 180),
-        PrimaryTextColor = Color3.fromRGB(240, 240, 240),
-        SecondaryTextColor = Color3.fromRGB(178, 150, 200)
-    },
-    Bloom = {
-        BackgroundColor = Color3.fromRGB(255, 240, 245),
-        SecondaryColor = Color3.fromRGB(255, 235, 240),
-        AccentColor = Color3.fromRGB(250, 160, 180),
-        PrimaryTextColor = Color3.fromRGB(60, 40, 50),
-        SecondaryTextColor = Color3.fromRGB(170, 130, 140)
-    },
-    DarkBlue = {
-        BackgroundColor = Color3.fromRGB(20, 25, 30),
-        SecondaryColor = Color3.fromRGB(30, 35, 40),
-        AccentColor = Color3.fromRGB(0, 120, 210),
-        PrimaryTextColor = Color3.fromRGB(230, 230, 230),
-        SecondaryTextColor = Color3.fromRGB(150, 150, 160)
-    },
-    Green = {
-        BackgroundColor = Color3.fromRGB(235, 245, 235),
-        SecondaryColor = Color3.fromRGB(225, 240, 225),
-        AccentColor = Color3.fromRGB(70, 130, 70),
-        PrimaryTextColor = Color3.fromRGB(30, 60, 30),
-        SecondaryTextColor = Color3.fromRGB(120, 140, 120)
-    },
-    Light = {
-        BackgroundColor = Color3.fromRGB(245, 245, 245),
-        SecondaryColor = Color3.fromRGB(240, 240, 240),
-        AccentColor = Color3.fromRGB(100, 150, 200),
-        PrimaryTextColor = Color3.fromRGB(40, 40, 40),
-        SecondaryTextColor = Color3.fromRGB(140, 140, 140)
-    },
-    Ocean = {
-        BackgroundColor = Color3.fromRGB(20, 30, 30),
-        SecondaryColor = Color3.fromRGB(30, 50, 50),
-        AccentColor = Color3.fromRGB(0, 140, 140),
-        PrimaryTextColor = Color3.fromRGB(230, 240, 240),
-        SecondaryTextColor = Color3.fromRGB(140, 160, 160)
-    },
-    Serenity = {
-        BackgroundColor = Color3.fromRGB(240, 245, 250),
-        SecondaryColor = Color3.fromRGB(210, 220, 230),
-        AccentColor = Color3.fromRGB(70, 130, 180),
-        PrimaryTextColor = Color3.fromRGB(50, 55, 60),
-        SecondaryTextColor = Color3.fromRGB(150, 150, 150)
-    }
-}
-
-Window:AddCommand('SetTheme', {'Theme'}, 'Changes the UI theme. Options: Default, AmberGlow, Amethyst, Bloom, DarkBlue, Green, Light, Ocean, Serenity.', function(Arguments, Speaker)
-    local themeName = Arguments[1]
-    local theme = RayfieldThemes[themeName]
-    if not theme then
-        Window:CreateNotification('SetTheme', 'Unknown theme. Options: Default, AmberGlow, Amethyst, Bloom, DarkBlue, Green, Light, Ocean, Serenity.', 5)
-        return
-    end
-    Window:AddTheme(themeName, theme)
-    Window:ChangeTheme(themeName)
-    Window:CreateNotification('SetTheme', 'Theme changed to ' .. themeName .. '.', 3)
-end)
-
-Window:AddCommand('HelloWorld', {}, 'Prints Hello World.', function(Arguments, Speaker)
-    print('Hello World')
-end)
-
-Window:AddCommand('Notify', {}, 'Creates A Notification.', function(Arguments, Speaker)
-    Window:CreateNotification('V0id Command UI Library', 'Notification', 5)
-end)
-
-Window:AddCommand('Speed', {'WalkSpeed'}, 'Sets your walkspeed.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then hum.WalkSpeed = tonumber(Arguments[1]) or 16 end
-end)
-
-Window:AddCommand('Jump', {'JumpPower'}, 'Sets your jump power.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then hum.JumpPower = tonumber(Arguments[1]) or 50 end
-end)
-
-Window:AddCommand('Fly', {}, 'Enables fly.', function(Arguments, Speaker)
-    local hrp = getHRP(Speaker)
-    local hum = getHumanoid(Speaker)
-    if not hrp or not hum then return end
-
-    local bv = Instance.new('BodyVelocity', hrp)
-    bv.Velocity = Vector3.zero
-    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    local bg = Instance.new('BodyGyro', hrp)
-    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    bg.D = 100
-
-    local flySpeed = 50
-    hum.PlatformStand = true
-
-    flyConnection = RunService.RenderStepped:Connect(function()
-        local cam = workspace.CurrentCamera
-        local direction = Vector3.zero
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0,1,0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then direction = direction - Vector3.new(0,1,0) end
-        bv.Velocity = direction * flySpeed
-        bg.CFrame = cam.CFrame
-    end)
-
-    Window:CreateNotification('Fly', 'Fly enabled. Use ;unfly to disable.', 3)
-end)
-
-Window:AddCommand('Unfly', {}, 'Disables fly.', function(Arguments, Speaker)
-    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
-    local hrp = getHRP(Speaker)
-    local hum = getHumanoid(Speaker)
-    if hrp then
-        for _, v in pairs(hrp:GetChildren()) do
-            if v:IsA('BodyVelocity') or v:IsA('BodyGyro') then v:Destroy() end
-        end
-    end
-    if hum then hum.PlatformStand = false end
-    Window:CreateNotification('Fly', 'Fly disabled.', 3)
-end)
-
-Window:AddCommand('Noclip', {}, 'Enables noclip.', function(Arguments, Speaker)
-    local char = getCharacter(Speaker)
-    if not char then return end
-    noclipConnection = RunService.Stepped:Connect(function()
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA('BasePart') and part.CanCollide then
-                part.CanCollide = false
+    -- Watch for any TextBox focus+enter across all GUIs
+    UserInputService.InputBegan:Connect(function(inp, gpe)
+        if inp.KeyCode ~= Enum.KeyCode.Return and
+           inp.KeyCode ~= Enum.KeyCode.KeypadEnter then return end
+        for _, v in pairs(pg:GetDescendants()) do
+            if v:IsA('TextBox') and v:IsFocused() then
+                local txt = v.Text
+                -- defer so the TextBox registers the Enter first
+                task.defer(function() execute(txt) end)
+                return
             end
         end
     end)
-    Window:CreateNotification('Noclip', 'Noclip enabled. Use ;clip to disable.', 3)
 end)
 
-Window:AddCommand('Clip', {}, 'Disables noclip.', function(Arguments, Speaker)
-    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
-    Window:CreateNotification('Noclip', 'Noclip disabled.', 3)
+-- ============================================================
+-- THEMES
+-- ============================================================
+local Themes = {
+    Default   = { BackgroundColor=Color3.fromRGB(25,25,25),    SecondaryColor=Color3.fromRGB(35,35,35),    AccentColor=Color3.fromRGB(50,138,220),  PrimaryTextColor=Color3.fromRGB(240,240,240), SecondaryTextColor=Color3.fromRGB(178,178,178) },
+    AmberGlow = { BackgroundColor=Color3.fromRGB(45,30,20),    SecondaryColor=Color3.fromRGB(60,45,35),    AccentColor=Color3.fromRGB(250,150,75),  PrimaryTextColor=Color3.fromRGB(255,245,230), SecondaryTextColor=Color3.fromRGB(190,150,130) },
+    Amethyst  = { BackgroundColor=Color3.fromRGB(30,20,40),    SecondaryColor=Color3.fromRGB(45,30,60),    AccentColor=Color3.fromRGB(130,80,180),  PrimaryTextColor=Color3.fromRGB(240,240,240), SecondaryTextColor=Color3.fromRGB(178,150,200) },
+    Bloom     = { BackgroundColor=Color3.fromRGB(255,240,245), SecondaryColor=Color3.fromRGB(255,235,240), AccentColor=Color3.fromRGB(250,160,180), PrimaryTextColor=Color3.fromRGB(60,40,50),   SecondaryTextColor=Color3.fromRGB(170,130,140) },
+    DarkBlue  = { BackgroundColor=Color3.fromRGB(20,25,30),    SecondaryColor=Color3.fromRGB(30,35,40),    AccentColor=Color3.fromRGB(0,120,210),   PrimaryTextColor=Color3.fromRGB(230,230,230), SecondaryTextColor=Color3.fromRGB(150,150,160) },
+    Green     = { BackgroundColor=Color3.fromRGB(235,245,235), SecondaryColor=Color3.fromRGB(225,240,225), AccentColor=Color3.fromRGB(70,130,70),   PrimaryTextColor=Color3.fromRGB(30,60,30),   SecondaryTextColor=Color3.fromRGB(120,140,120) },
+    Light     = { BackgroundColor=Color3.fromRGB(245,245,245), SecondaryColor=Color3.fromRGB(240,240,240), AccentColor=Color3.fromRGB(100,150,200), PrimaryTextColor=Color3.fromRGB(40,40,40),   SecondaryTextColor=Color3.fromRGB(140,140,140) },
+    Ocean     = { BackgroundColor=Color3.fromRGB(20,30,30),    SecondaryColor=Color3.fromRGB(30,50,50),    AccentColor=Color3.fromRGB(0,140,140),   PrimaryTextColor=Color3.fromRGB(230,240,240), SecondaryTextColor=Color3.fromRGB(140,160,160) },
+    Serenity  = { BackgroundColor=Color3.fromRGB(240,245,250), SecondaryColor=Color3.fromRGB(210,220,230), AccentColor=Color3.fromRGB(70,130,180),  PrimaryTextColor=Color3.fromRGB(50,55,60),   SecondaryTextColor=Color3.fromRGB(150,150,150) },
+}
+Window:AddTheme('test',{ BackgroundColor=Color3.fromRGB(0,255,255), SecondaryColor=Color3.fromRGB(225,225,225), AccentColor=Color3.fromRGB(125,125,125), PrimaryTextColor=Color3.fromRGB(0,0,0), SecondaryTextColor=Color3.fromRGB(75,75,75) })
+
+-- ================================================================
+-- COMMANDS
+-- Each one is registered with Window:AddCommand so it shows in
+-- the UI AND fires via chat. No wrapper needed.
+-- ================================================================
+
+-- ---- SYSTEM ----
+Window:AddCommand('SetPrefix',{'Prefix'},'Changes command prefix.',function(a,s)
+    prefix=a[1] or ';'; Window:ChangePrefix(prefix); N('Prefix','Set to: '..prefix)
+end)
+Window:AddCommand('SetTheme',{'Name'},'Change UI theme (Default AmberGlow Amethyst Bloom DarkBlue Green Light Ocean Serenity).',function(a,s)
+    local t=Themes[a[1]]; if not t then N('SetTheme','Unknown theme.') return end
+    Window:AddTheme(a[1],t); Window:ChangeTheme(a[1]); N('SetTheme','Theme: '..a[1])
+end)
+Window:AddCommand('Notify',{'Text'},'Shows a notification.',function(a,s) N('Notify',table.concat(a,' '),5) end)
+Window:AddCommand('Print',{'Text'},'Prints to console.',function(a,s) print(table.concat(a,' ')) end)
+Window:AddCommand('HelloWorld',{},'Prints Hello World.',function(a,s) print('Hello World') end)
+Window:AddCommand('ServerInfo',{},'Shows server info.',function(a,s)
+    local info='Players: '..#Players:GetPlayers()..'/'..Players.MaxPlayers..' | PlaceID: '..game.PlaceId
+    N('Server Info',info,7); print(info); print('JobID: '..game.JobId)
+end)
+Window:AddCommand('JobID',{},'Copies JobID to clipboard.',function(a,s)
+    setclipboard(game.JobId); N('JobID','Copied: '..game.JobId)
+end)
+Window:AddCommand('CopyPlaceID',{},'Copies PlaceID to clipboard.',function(a,s)
+    setclipboard(tostring(game.PlaceId)); N('PlaceID','Copied: '..game.PlaceId)
+end)
+Window:AddCommand('CreatorID',{},'Shows creator ID.',function(a,s) N('CreatorID',tostring(game.CreatorId)) end)
+Window:AddCommand('Ping',{},'Shows your ping.',function(a,s)
+    N('Ping',math.floor(LocalPlayer:GetNetworkPing()*1000)..'ms')
+end)
+Window:AddCommand('NoRender',{},'Disables 3D rendering.',function(a,s)
+    game:GetService('RunService'):Set3dRenderingEnabled(false); N('Render','OFF.')
+end)
+Window:AddCommand('Render',{},'Re-enables 3D rendering.',function(a,s)
+    game:GetService('RunService'):Set3dRenderingEnabled(true); N('Render','ON.')
+end)
+Window:AddCommand('AntiLag',{},'Sets graphics to minimum.',function(a,s)
+    settings().Rendering.QualityLevel=Enum.QualityLevel.Level01; N('AntiLag','Graphics minimum.')
+end)
+Window:AddCommand('SaveGame',{},'Saves the game via saveinstance.',function(a,s)
+    if saveinstance then saveinstance(); N('SaveGame','Saved.') else N('SaveGame','Not supported.') end
+end)
+Window:AddCommand('ExecScript',{'URL'},'Loads and runs a script URL.',function(a,s)
+    if a[1] then loadstring(game:HttpGet(a[1],true))() end
+end)
+Window:AddCommand('BreakLoops',{},'Stops ALL active loops.',function(a,s)
+    flyConn=Kill(flyConn); noclipConn=Kill(noclipConn); infjumpConn=Kill(infjumpConn)
+    loopKillConn=Kill(loopKillConn); followConn=Kill(followConn); orbitConn=Kill(orbitConn)
+    antiAFKConn=Kill(antiAFKConn); loopGotoConn=Kill(loopGotoConn); loopBringConn=Kill(loopBringConn)
+    loopSpeedConn=Kill(loopSpeedConn); loopJumpConn=Kill(loopJumpConn); wallWalkConn=Kill(wallWalkConn)
+    autoClickConn=Kill(autoClickConn); spamConn=Kill(spamConn); loopXrayConn=Kill(loopXrayConn)
+    loopFBConn=Kill(loopFBConn); loopNoBguiConn=Kill(loopNoBguiConn); grabToolsConn=Kill(grabToolsConn)
+    autoJumpConn=Kill(autoJumpConn); flyJumpConn=Kill(flyJumpConn); swimConn=Kill(swimConn)
+    tpWalkConn=Kill(tpWalkConn); cflyConn=Kill(cflyConn); vflyConn=Kill(vflyConn)
+    stareConn=Kill(stareConn); antiVoidConn=Kill(antiVoidConn); wallTpConn=Kill(wallTpConn)
+    pcall(mouse1release)
+    local h=H(s); if h then h.PlatformStand=false end
+    local r=R(s); if r then r.Anchored=false
+        for _,v in pairs(r:GetChildren()) do if v:IsA('BodyMover') then v:Destroy() end end
+    end
+    N('BreakLoops','All loops stopped.')
 end)
 
-Window:AddCommand('InfiniteJump', {}, 'Enables infinite jump.', function(Arguments, Speaker)
-    infiniteJumpConnection = UserInputService.JumpRequest:Connect(function()
-        local hum = getHumanoid(Speaker)
-        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+-- ---- PLAYER INFO ----
+Window:AddCommand('Players',{},'Lists all players.',function(a,s)
+    for _,p in pairs(Players:GetPlayers()) do print(p.Name..' | '..p.DisplayName..' | '..p.UserId) end
+    N('Players',#Players:GetPlayers()..' printed.')
+end)
+Window:AddCommand('ID',{'Player'},'Shows a player\'s user ID.',function(a,s)
+    local t=findPlayer(a[1]) or s; N('UserID',t.Name..': '..t.UserId)
+end)
+Window:AddCommand('Age',{'Player'},'Shows account age in days.',function(a,s)
+    local t=findPlayer(a[1]) or s; N('Age',t.Name..': '..t.AccountAge..' days')
+end)
+Window:AddCommand('JoinDate',{'Player'},'Estimates join date.',function(a,s)
+    local t=findPlayer(a[1]) or s
+    local d=os.date('*t',os.time()-t.AccountAge*86400)
+    N('JoinDate',t.Name..' ~'..d.year..'-'..('%02d'):format(d.month)..'-'..('%02d'):format(d.day),6)
+end)
+Window:AddCommand('CopyName',{'Player'},'Copies username to clipboard.',function(a,s)
+    local t=findPlayer(a[1]) or s; setclipboard(t.Name); N('CopyName','Copied: '..t.Name)
+end)
+Window:AddCommand('CopyID',{'Player'},'Copies user ID to clipboard.',function(a,s)
+    local t=findPlayer(a[1]) or s; setclipboard(tostring(t.UserId)); N('CopyID','Copied: '..t.UserId)
+end)
+Window:AddCommand('Desc',{'Player'},'Copies profile URL.',function(a,s)
+    local t=findPlayer(a[1]) or s
+    local url='https://www.roblox.com/users/'..t.UserId..'/profile'
+    setclipboard(url); N('Profile',url,6)
+end)
+Window:AddCommand('FindFriendGroups',{},'Finds friends among players in server.',function(a,s)
+    local pl=Players:GetPlayers(); local found=false
+    for i=1,#pl do for j=i+1,#pl do
+        if pl[i]:IsFriendsWith(pl[j].UserId) then
+            N('Friends',pl[i].Name..' & '..pl[j].Name..' are friends!',6); found=true
+        end
+    end end
+    if not found then N('Friends','No friend pairs found.') end
+end)
+
+-- ---- HEALTH ----
+Window:AddCommand('Kill',{},'Kills your character.',function(a,s) local h=H(s); if h then h.Health=0 end end)
+Window:AddCommand('Respawn',{},'Respawns your character.',function(a,s) s:LoadCharacter() end)
+Window:AddCommand('Reset',{},'Resets your character.',function(a,s) local h=H(s); if h then h.Health=0 end end)
+Window:AddCommand('Refresh',{},'Respawns at same position.',function(a,s)
+    local pos=R(s) and R(s).CFrame
+    s:LoadCharacter()
+    if pos then s.CharacterAdded:Wait(); task.wait(0.1); local r=R(s); if r then r.CFrame=pos end end
+end)
+Window:AddCommand('Health',{'Amount'},'Sets your health.',function(a,s)
+    local h=H(s); if h then h.Health=tonumber(a[1]) or 100 end
+end)
+Window:AddCommand('MaxHealth',{'Amount'},'Sets max health.',function(a,s)
+    local h=H(s); if h then h.MaxHealth=tonumber(a[1]) or 100 end
+end)
+Window:AddCommand('God',{},'Infinite health.',function(a,s)
+    local h=H(s); if h then h.MaxHealth=math.huge; h.Health=math.huge end; N('God','ON.')
+end)
+Window:AddCommand('Ungod',{},'Resets health to 100.',function(a,s)
+    local h=H(s); if h then h.MaxHealth=100; h.Health=100 end; N('God','OFF.')
+end)
+Window:AddCommand('PermaDeath',{},'Prevents respawn after death.',function(a,s)
+    s.CharacterAdded:Connect(function(c)
+        task.wait(0.1); local h=c:FindFirstChildOfClass('Humanoid')
+        if h then h.MaxHealth=0; h.Health=0 end
+    end); N('PermaDeath','ON.')
+end)
+
+-- ---- MOVEMENT ----
+Window:AddCommand('Speed',{'WalkSpeed'},'Sets walkspeed. Default 16.',function(a,s)
+    local h=H(s); if h then h.WalkSpeed=tonumber(a[1]) or 16 end
+end)
+Window:AddCommand('LoopSpeed',{'WalkSpeed'},'Loops walkspeed.',function(a,s)
+    local sp=tonumber(a[1]) or 16; loopSpeedConn=Kill(loopSpeedConn)
+    loopSpeedConn=RunService.Heartbeat:Connect(function()
+        local h=H(s); if h then h.WalkSpeed=sp end
+    end); N('LoopSpeed','ON: '..sp)
+end)
+Window:AddCommand('UnloopSpeed',{},'Stops LoopSpeed.',function(a,s)
+    loopSpeedConn=Kill(loopSpeedConn); N('LoopSpeed','OFF.')
+end)
+Window:AddCommand('Jump',{'JumpPower'},'Sets jump power. Default 50.',function(a,s)
+    local h=H(s); if h then h.JumpPower=tonumber(a[1]) or 50 end
+end)
+Window:AddCommand('LoopJump',{'JumpPower'},'Loops jump power.',function(a,s)
+    local jp=tonumber(a[1]) or 50; loopJumpConn=Kill(loopJumpConn)
+    loopJumpConn=RunService.Heartbeat:Connect(function()
+        local h=H(s); if h then h.JumpPower=jp end
+    end); N('LoopJump','ON: '..jp)
+end)
+Window:AddCommand('UnloopJump',{},'Stops LoopJump.',function(a,s)
+    loopJumpConn=Kill(loopJumpConn); N('LoopJump','OFF.')
+end)
+Window:AddCommand('HipHeight',{'Height'},'Sets hip height.',function(a,s)
+    local h=H(s); if h then h.HipHeight=tonumber(a[1]) or 0 end
+end)
+Window:AddCommand('Gravity',{'Value'},'Sets gravity. Default 196.2.',function(a,s)
+    workspace.Gravity=tonumber(a[1]) or 196.2
+end)
+Window:AddCommand('Sit',{},'Makes you sit.',function(a,s) local h=H(s); if h then h.Sit=true end end)
+Window:AddCommand('Unsit',{},'Makes you stand.',function(a,s) local h=H(s); if h then h.Sit=false end end)
+Window:AddCommand('NoSit',{},'Prevents sitting.',function(a,s)
+    local h=H(s); if h then h:SetStateEnabled(Enum.HumanoidStateType.Seated,false) end; N('NoSit','ON.')
+end)
+Window:AddCommand('UnNoSit',{},'Re-enables sitting.',function(a,s)
+    local h=H(s); if h then h:SetStateEnabled(Enum.HumanoidStateType.Seated,true) end; N('NoSit','OFF.')
+end)
+Window:AddCommand('PlatformStand',{},'Enables PlatformStand.',function(a,s)
+    local h=H(s); if h then h.PlatformStand=true end
+end)
+Window:AddCommand('UnPlatformStand',{},'Disables PlatformStand.',function(a,s)
+    local h=H(s); if h then h.PlatformStand=false end
+end)
+Window:AddCommand('NoRotate',{},'Disables AutoRotate.',function(a,s)
+    local h=H(s); if h then h.AutoRotate=false end
+end)
+Window:AddCommand('AutoRotate',{},'Enables AutoRotate.',function(a,s)
+    local h=H(s); if h then h.AutoRotate=true end
+end)
+Window:AddCommand('InfiniteJump',{},'Enables infinite jump.',function(a,s)
+    infjumpConn=Kill(infjumpConn)
+    infjumpConn=UserInputService.JumpRequest:Connect(function()
+        local h=H(s); if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end); N('InfJump','ON.')
+end)
+Window:AddCommand('NoInfJump',{},'Disables infinite jump.',function(a,s)
+    infjumpConn=Kill(infjumpConn); N('InfJump','OFF.')
+end)
+Window:AddCommand('FlyJump',{},'Hold Space to fly upward.',function(a,s)
+    flyJumpConn=Kill(flyJumpConn)
+    flyJumpConn=RunService.Heartbeat:Connect(function()
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            local r=R(s); if r then r.AssemblyLinearVelocity=Vector3.new(r.AssemblyLinearVelocity.X,50,r.AssemblyLinearVelocity.Z) end
+        end
+    end); N('FlyJump','ON.')
+end)
+Window:AddCommand('UnFlyJump',{},'Disables FlyJump.',function(a,s)
+    flyJumpConn=Kill(flyJumpConn); N('FlyJump','OFF.')
+end)
+Window:AddCommand('AutoJump',{},'Auto-jumps when hitting objects.',function(a,s)
+    autoJumpConn=Kill(autoJumpConn)
+    autoJumpConn=RunService.Heartbeat:Connect(function()
+        local h=H(s); if h then h.AutoJumpEnabled=true end
+    end); N('AutoJump','ON.')
+end)
+Window:AddCommand('UnAutoJump',{},'Disables AutoJump.',function(a,s)
+    autoJumpConn=Kill(autoJumpConn)
+    local h=H(s); if h then h.AutoJumpEnabled=false end; N('AutoJump','OFF.')
+end)
+Window:AddCommand('Swim',{},'Swim in the air.',function(a,s)
+    swimConn=Kill(swimConn)
+    swimConn=RunService.Heartbeat:Connect(function()
+        local h=H(s); if h then h:ChangeState(Enum.HumanoidStateType.Swimming) end
+    end); N('Swim','ON.')
+end)
+Window:AddCommand('UnSwim',{},'Stops swimming.',function(a,s)
+    swimConn=Kill(swimConn); N('Swim','OFF.')
+end)
+Window:AddCommand('Trip',{},'Makes you fall over.',function(a,s)
+    local h=H(s); if h then h:ChangeState(Enum.HumanoidStateType.FallingDown) end
+end)
+Window:AddCommand('Anchor',{},'Anchors your HRP.',function(a,s)
+    local r=R(s); if r then r.Anchored=true end
+end)
+Window:AddCommand('UnAnchor',{},'Unanchors your HRP.',function(a,s)
+    local r=R(s); if r then r.Anchored=false end
+end)
+Window:AddCommand('BreakVelocity',{},'Sets velocity to zero.',function(a,s)
+    local r=R(s); if r then r.AssemblyLinearVelocity=Vector3.zero end
+end)
+Window:AddCommand('Spin',{'Speed'},'Spins your character.',function(a,s)
+    local r=R(s); if not r then return end
+    local b=Instance.new('BodyAngularVelocity')
+    b.AngularVelocity=Vector3.new(0,tonumber(a[1]) or 100,0)
+    b.MaxTorque=Vector3.new(0,1e9,0); b.Parent=r
+end)
+Window:AddCommand('Unspin',{},'Stops spinning.',function(a,s)
+    local r=R(s); if not r then return end
+    for _,v in pairs(r:GetChildren()) do if v:IsA('BodyAngularVelocity') then v:Destroy() end end
+end)
+Window:AddCommand('Float',{},'Spawns a platform beneath you.',function(a,s)
+    local r=R(s); if not r then return end
+    local p=Instance.new('Part'); p.Name='V0idFloat'; p.Size=Vector3.new(6,0.5,6)
+    p.Anchored=false; p.CFrame=r.CFrame-Vector3.new(0,3,0); p.Parent=workspace
+    local w=Instance.new('WeldConstraint'); w.Part0=r; w.Part1=p; w.Parent=r
+    N('Float','Spawned. ;unfloat to remove.')
+end)
+Window:AddCommand('UnFloat',{},'Removes float platform.',function(a,s)
+    local p=workspace:FindFirstChild('V0idFloat'); if p then p:Destroy() end; N('Float','Removed.')
+end)
+Window:AddCommand('AntiVoid',{},'Prevents falling into void.',function(a,s)
+    antiVoidConn=Kill(antiVoidConn)
+    antiVoidConn=RunService.Heartbeat:Connect(function()
+        local r=R(s); if r and r.Position.Y<-450 then r.AssemblyLinearVelocity=Vector3.new(0,200,0) end
+    end); N('AntiVoid','ON.')
+end)
+Window:AddCommand('UnAntiVoid',{},'Disables AntiVoid.',function(a,s)
+    antiVoidConn=Kill(antiVoidConn); N('AntiVoid','OFF.')
+end)
+Window:AddCommand('FakeOut',{},'TP to void and back.',function(a,s)
+    local r=R(s); if not r then return end
+    local orig=r.CFrame; r.CFrame=CFrame.new(0,-10000,0)
+    task.wait(0.1); local r2=R(s); if r2 then r2.CFrame=orig end; N('FakeOut','Done.')
+end)
+Window:AddCommand('TpWalk',{'Studs'},'TP in move direction each frame.',function(a,s)
+    local d=tonumber(a[1]) or 10; tpWalkConn=Kill(tpWalkConn)
+    tpWalkConn=RunService.Heartbeat:Connect(function()
+        local r=R(s); local h=H(s)
+        if r and h and h.MoveDirection.Magnitude>0 then r.CFrame=r.CFrame+h.MoveDirection*d end
+    end); N('TpWalk','ON.')
+end)
+Window:AddCommand('UnTpWalk',{},'Disables TpWalk.',function(a,s)
+    tpWalkConn=Kill(tpWalkConn); N('TpWalk','OFF.')
+end)
+Window:AddCommand('WallWalk',{},'Walk on walls.',function(a,s)
+    wallWalkConn=Kill(wallWalkConn)
+    wallWalkConn=RunService.Heartbeat:Connect(function()
+        local r=R(s); if not r then return end
+        local ray=Ray.new(r.Position,r.CFrame.LookVector*3)
+        local hit,_,normal=workspace:FindPartOnRay(ray,C(s))
+        if hit then r.CFrame=CFrame.new(r.Position,r.Position+normal)*CFrame.Angles(math.rad(-90),0,0) end
+    end); N('WallWalk','ON.')
+end)
+Window:AddCommand('UnWallWalk',{},'Disables WallWalk.',function(a,s)
+    wallWalkConn=Kill(wallWalkConn); N('WallWalk','OFF.')
+end)
+Window:AddCommand('Weaken',{'Density'},'Makes character less dense.',function(a,s)
+    local d=tonumber(a[1]) or 0.1; local c=C(s); if not c then return end
+    for _,p in pairs(c:GetDescendants()) do
+        if p:IsA('BasePart') then p.CustomPhysicalProperties=PhysicalProperties.new(d,0.3,0.5,0,0) end
+    end; N('Weaken','Done.')
+end)
+Window:AddCommand('UnWeaken',{},'Resets density.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,p in pairs(c:GetDescendants()) do
+        if p:IsA('BasePart') then p.CustomPhysicalProperties=PhysicalProperties.new(0.7,0.3,0.5,0,0) end
+    end; N('UnWeaken','Done.')
+end)
+Window:AddCommand('Strengthen',{'Density'},'Makes character more dense.',function(a,s)
+    local d=tonumber(a[1]) or 5; local c=C(s); if not c then return end
+    for _,p in pairs(c:GetDescendants()) do
+        if p:IsA('BasePart') then p.CustomPhysicalProperties=PhysicalProperties.new(d,0.3,0.5,0,0) end
+    end; N('Strengthen','Done.')
+end)
+
+-- ---- FLY ----
+Window:AddCommand('Fly',{'Speed'},'Fly. WASD + Space/Shift.',function(a,s)
+    local r=R(s); local h=H(s); if not r or not h then return end
+    flyConn=Kill(flyConn)
+    for _,v in pairs(r:GetChildren()) do
+        if v:IsA('BodyVelocity') or v:IsA('BodyGyro') then v:Destroy() end
+    end
+    flySpeed=tonumber(a[1]) or flySpeed
+    local bv=Instance.new('BodyVelocity',r); bv.Velocity=Vector3.zero; bv.MaxForce=Vector3.new(1e9,1e9,1e9)
+    local bg=Instance.new('BodyGyro',r); bg.MaxTorque=Vector3.new(1e9,1e9,1e9); bg.D=100
+    h.PlatformStand=true
+    flyConn=RunService.RenderStepped:Connect(function()
+        local cam=workspace.CurrentCamera; local dir=Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir=dir+cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir=dir-cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir=dir-cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir=dir+cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir=dir+Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir=dir-Vector3.new(0,1,0) end
+        bv.Velocity=dir*flySpeed; bg.CFrame=cam.CFrame
+    end); N('Fly','ON (spd '..flySpeed..'). ;unfly to stop.')
+end)
+Window:AddCommand('Unfly',{},'Disables fly.',function(a,s)
+    flyConn=Kill(flyConn)
+    local r=R(s); local h=H(s)
+    if r then for _,v in pairs(r:GetChildren()) do if v:IsA('BodyVelocity') or v:IsA('BodyGyro') then v:Destroy() end end end
+    if h then h.PlatformStand=false end; N('Fly','OFF.')
+end)
+Window:AddCommand('FlySpeed',{'Speed'},'Sets fly speed.',function(a,s)
+    flySpeed=tonumber(a[1]) or 50; N('FlySpeed',tostring(flySpeed))
+end)
+Window:AddCommand('CFly',{'Speed'},'CFrame fly (bypasses some anti-cheats).',function(a,s)
+    cflyConn=Kill(cflyConn); cflySpeed=tonumber(a[1]) or cflySpeed
+    cflyConn=RunService.RenderStepped:Connect(function(dt)
+        local r=R(s); if not r then return end
+        local cam=workspace.CurrentCamera; local dir=Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir=dir+cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir=dir-cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir=dir-cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir=dir+cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir=dir+Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir=dir-Vector3.new(0,1,0) end
+        r.CFrame=r.CFrame+dir*cflySpeed*dt
+    end); N('CFly','ON. ;uncfly to stop.')
+end)
+Window:AddCommand('UnCFly',{},'Disables CFly.',function(a,s)
+    cflyConn=Kill(cflyConn); N('CFly','OFF.')
+end)
+Window:AddCommand('CFlySpeed',{'Speed'},'Sets CFly speed.',function(a,s)
+    cflySpeed=tonumber(a[1]) or 50; N('CFlySpeed',tostring(cflySpeed))
+end)
+Window:AddCommand('VFly',{'Speed'},'Fly while in a vehicle.',function(a,s)
+    vflyConn=Kill(vflyConn); vflySpeed=tonumber(a[1]) or vflySpeed
+    vflyConn=RunService.RenderStepped:Connect(function(dt)
+        local r=R(s); if not r then return end
+        local cam=workspace.CurrentCamera; local dir=Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir=dir+cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir=dir-cam.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir=dir-cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir=dir+cam.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir=dir+Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir=dir-Vector3.new(0,1,0) end
+        r.CFrame=r.CFrame+dir*vflySpeed*dt
+    end); N('VFly','ON. ;unvfly to stop.')
+end)
+Window:AddCommand('UnVFly',{},'Disables vehicle fly.',function(a,s)
+    vflyConn=Kill(vflyConn); N('VFly','OFF.')
+end)
+
+-- ---- NOCLIP ----
+Window:AddCommand('Noclip',{},'Enables noclip.',function(a,s)
+    local c=C(s); if not c then return end
+    noclipConn=Kill(noclipConn)
+    noclipConn=RunService.Stepped:Connect(function()
+        for _,p in pairs(c:GetDescendants()) do
+            if p:IsA('BasePart') then p.CanCollide=false end
+        end
+    end); N('Noclip','ON. ;clip to stop.')
+end)
+Window:AddCommand('Clip',{},'Disables noclip.',function(a,s)
+    noclipConn=Kill(noclipConn); N('Noclip','OFF.')
+end)
+
+-- ---- TELEPORT ----
+local function doGoto(a,s)
+    local name=table.concat(a,' ')
+    if name=='' then N('Goto','Usage: ;goto / ;to / ;tp <player>') return end
+    local t=findPlayer(name); local r=R(s)
+    if not r then return end
+    if not t then N('Goto','Not found: '..name) return end
+    local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+    if tr then r.CFrame=tr.CFrame+Vector3.new(3,0,0); N('Goto','Teleported to '..t.Name..'.')
+    else N('Goto',t.Name..' has no character.') end
+end
+Window:AddCommand('Goto',{'Player'},'Teleport to a player. ;goto <name>',doGoto)
+Window:AddCommand('To',{'Player'},'Teleport to a player. ;to <name>',doGoto)
+Window:AddCommand('Tp',{'Player'},'Teleport to a player. ;tp <name>',doGoto)
+
+Window:AddCommand('TweenGoto',{'Player'},'Tween to a player.',function(a,s)
+    local t=findPlayer(a[1]); local r=R(s); if not t or not r then return end
+    local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+    if tr then
+        local d=(r.Position-tr.Position).Magnitude
+        game:GetService('TweenService'):Create(r,TweenInfo.new(d/(100*tweenSpd)),{CFrame=tr.CFrame+Vector3.new(3,0,0)}):Play()
+    end
+end)
+Window:AddCommand('TweenSpeed',{'Speed'},'Sets tween speed. Default 1.',function(a,s)
+    tweenSpd=tonumber(a[1]) or 1; N('TweenSpeed',tostring(tweenSpd))
+end)
+Window:AddCommand('TpPos',{'X','Y','Z'},'Teleport to coordinates.',function(a,s)
+    local r=R(s)
+    if r then r.CFrame=CFrame.new(tonumber(a[1]) or 0,tonumber(a[2]) or 0,tonumber(a[3]) or 0) end
+end)
+Window:AddCommand('Offset',{'X','Y','Z'},'Offset your position.',function(a,s)
+    local r=R(s)
+    if r then r.CFrame=r.CFrame+Vector3.new(tonumber(a[1]) or 0,tonumber(a[2]) or 0,tonumber(a[3]) or 0) end
+end)
+Window:AddCommand('Thru',{'Studs'},'TP forward N studs.',function(a,s)
+    local r=R(s); if r then r.CFrame=r.CFrame+r.CFrame.LookVector*(tonumber(a[1]) or 10) end
+end)
+Window:AddCommand('NotifyPos',{'Player'},'Shows a player\'s position.',function(a,s)
+    local t=findPlayer(a[1]) or s; local r=R(t)
+    if r then local p=r.Position; N('Pos',t.Name..': '..math.floor(p.X)..', '..math.floor(p.Y)..', '..math.floor(p.Z),6) end
+end)
+Window:AddCommand('SpawnPoint',{},'Sets a custom spawn point.',function(a,s)
+    local r=R(s); if r then spawnPoint=r.CFrame end; N('SpawnPoint','Set.')
+    s.CharacterAdded:Connect(function(c)
+        if spawnPoint then task.wait(0.1); local r2=c:WaitForChild('HumanoidRootPart',5); if r2 then r2.CFrame=spawnPoint end end
     end)
-    Window:CreateNotification('Infinite Jump', 'Infinite jump enabled. Use ;noinfjump to disable.', 3)
 end)
-
-Window:AddCommand('NoInfJump', {}, 'Disables infinite jump.', function(Arguments, Speaker)
-    if infiniteJumpConnection then infiniteJumpConnection:Disconnect() infiniteJumpConnection = nil end
-    Window:CreateNotification('Infinite Jump', 'Infinite jump disabled.', 3)
+Window:AddCommand('NoSpawnPoint',{},'Clears custom spawn point.',function(a,s)
+    spawnPoint=nil; N('SpawnPoint','Cleared.')
 end)
-
-Window:AddCommand('Teleport', {'X', 'Y', 'Z'}, 'Teleports to coordinates.', function(Arguments, Speaker)
-    local hrp = getHRP(Speaker)
-    if hrp then
-        hrp.CFrame = CFrame.new(tonumber(Arguments[1]) or 0, tonumber(Arguments[2]) or 0, tonumber(Arguments[3]) or 0)
+Window:AddCommand('FlashBack',{},'TP to last death position.',function(a,s)
+    if lastDeath then local r=R(s); if r then r.CFrame=lastDeath end
+    else N('FlashBack','No death recorded yet.') end
+end)
+Window:AddCommand('LoopGoto',{'Player','Dist'},'Loop TP to a player.',function(a,s)
+    local t=findPlayer(a[1]); if not t then return end
+    local dist=tonumber(a[2]) or 3; loopGotoConn=Kill(loopGotoConn)
+    loopGotoConn=RunService.Heartbeat:Connect(function()
+        local r=R(s); local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+        if r and tr and (r.Position-tr.Position).Magnitude>dist then r.CFrame=tr.CFrame+Vector3.new(dist,0,0) end
+    end); N('LoopGoto','Looping to '..t.Name..'.')
+end)
+Window:AddCommand('UnLoopGoto',{},'Stops LoopGoto.',function(a,s)
+    loopGotoConn=Kill(loopGotoConn); N('LoopGoto','OFF.')
+end)
+Window:AddCommand('PulseTP',{'Player','Seconds'},'TP to player for N seconds.',function(a,s)
+    local t=findPlayer(a[1]); local dur=tonumber(a[2]) or 3
+    local r=R(s); local tr=t and t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+    if r and tr then
+        local orig=r.CFrame; r.CFrame=tr.CFrame+Vector3.new(3,0,0)
+        task.delay(dur,function() local r2=R(s); if r2 then r2.CFrame=orig end end)
+        N('PulseTP',dur..'s then back.')
     end
 end)
 
-Window:AddCommand('Goto', {'Player'}, 'Teleports you to a player.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1])
-    local hrp = getHRP(Speaker)
-    if target and hrp then
-        local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
-        if tHRP then hrp.CFrame = tHRP.CFrame + Vector3.new(3, 0, 0) end
-    end
+-- ---- WAYPOINTS ----
+Window:AddCommand('SetWaypoint',{'Name'},'Set waypoint at your position.',function(a,s)
+    local r=R(s); local n=a[1] or 'wp'
+    if r then waypoints[n]=r.CFrame; N('Waypoint','"'..n..'" set.') end
+end)
+Window:AddCommand('Waypoint',{'Name'},'TP to a waypoint.',function(a,s)
+    local n=a[1]; if waypoints[n] then local r=R(s); if r then r.CFrame=waypoints[n] end
+    else N('Waypoint','Not found: '..tostring(n)) end
+end)
+Window:AddCommand('WaypointPos',{'Name','X','Y','Z'},'Set waypoint at coordinates.',function(a,s)
+    waypoints[a[1]]=CFrame.new(tonumber(a[2]) or 0,tonumber(a[3]) or 0,tonumber(a[4]) or 0)
+    N('Waypoint','"'..(a[1] or '?')..'" set.')
+end)
+Window:AddCommand('DeleteWaypoint',{'Name'},'Deletes a waypoint.',function(a,s)
+    waypoints[a[1]]=nil; N('Waypoint','Deleted: '..tostring(a[1]))
+end)
+Window:AddCommand('ClearWaypoints',{},'Clears all waypoints.',function(a,s)
+    waypoints={}; N('Waypoints','All cleared.')
+end)
+Window:AddCommand('Waypoints',{},'Lists all waypoints.',function(a,s)
+    local l={}; for n in pairs(waypoints) do l[#l+1]=n end
+    N('Waypoints',#l>0 and table.concat(l,', ') or 'None.',6)
 end)
 
-Window:AddCommand('Bring', {'Player'}, 'Brings a player to you.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1])
-    local hrp = getHRP(Speaker)
-    if target and hrp then
-        local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
-        if tHRP then tHRP.CFrame = hrp.CFrame + Vector3.new(3, 0, 0) end
-    end
+-- ---- PLAYER INTERACTIONS ----
+Window:AddCommand('Bring',{'Player'},'Brings a player to you.',function(a,s)
+    local t=findPlayer(a[1]); local r=R(s)
+    if t and r then local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+        if tr then tr.CFrame=r.CFrame+Vector3.new(3,0,0) end end
 end)
-
-Window:AddCommand('Sit', {}, 'Makes your character sit.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then hum.Sit = true end
+Window:AddCommand('LoopBring',{'Player'},'Loop brings a player to you.',function(a,s)
+    local t=findPlayer(a[1]); if not t then return end
+    loopBringConn=Kill(loopBringConn)
+    loopBringConn=RunService.Heartbeat:Connect(function()
+        local r=R(s); local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+        if r and tr then tr.CFrame=r.CFrame+Vector3.new(3,0,0) end
+    end); N('LoopBring','ON: '..t.Name)
 end)
-
-Window:AddCommand('Unsit', {}, 'Makes your character stop sitting.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then hum.Sit = false end
+Window:AddCommand('UnLoopBring',{},'Stops LoopBring.',function(a,s)
+    loopBringConn=Kill(loopBringConn); N('LoopBring','OFF.')
 end)
-
-Window:AddCommand('Kill', {}, 'Kills your character.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then hum.Health = 0 end
+Window:AddCommand('Freeze',{'Player'},'Freezes a player (client).',function(a,s)
+    local t=a[1] and findPlayer(a[1])
+    local r=t and t.Character and t.Character:FindFirstChild('HumanoidRootPart') or R(s)
+    if r then r.Anchored=true end
 end)
-
-Window:AddCommand('Respawn', {}, 'Respawns your character.', function(Arguments, Speaker)
-    Speaker:LoadCharacter()
+Window:AddCommand('Thaw',{'Player'},'Thaws a player.',function(a,s)
+    local t=a[1] and findPlayer(a[1])
+    local r=t and t.Character and t.Character:FindFirstChild('HumanoidRootPart') or R(s)
+    if r then r.Anchored=false end
 end)
-
-Window:AddCommand('Health', {'Amount'}, 'Sets your health.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then hum.Health = tonumber(Arguments[1]) or 100 end
+Window:AddCommand('Follow',{'Player'},'Follows a player.',function(a,s)
+    local t=findPlayer(a[1]); if not t then return end
+    followConn=Kill(followConn)
+    followConn=RunService.Heartbeat:Connect(function()
+        local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart'); local h=H(s)
+        if tr and h then h:MoveTo(tr.Position) end
+    end); N('Follow','Following '..t.Name..'. ;unfollow to stop.')
 end)
-
-Window:AddCommand('MaxHealth', {'Amount'}, 'Sets your max health.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then hum.MaxHealth = tonumber(Arguments[1]) or 100 end
+Window:AddCommand('Unfollow',{},'Stops following.',function(a,s)
+    followConn=Kill(followConn); N('Follow','OFF.')
 end)
-
-Window:AddCommand('God', {}, 'Sets health to infinite.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then
-        hum.MaxHealth = math.huge
-        hum.Health = math.huge
-    end
-    Window:CreateNotification('God Mode', 'God mode enabled.', 3)
-end)
-
-Window:AddCommand('Ungod', {}, 'Resets health to 100.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then
-        hum.MaxHealth = 100
-        hum.Health = 100
-    end
-    Window:CreateNotification('God Mode', 'God mode disabled.', 3)
-end)
-
-Window:AddCommand('Freeze', {}, 'Freezes your character.', function(Arguments, Speaker)
-    local hrp = getHRP(Speaker)
-    if hrp then hrp.Anchored = true end
-end)
-
-Window:AddCommand('Unfreeze', {}, 'Unfreezes your character.', function(Arguments, Speaker)
-    local hrp = getHRP(Speaker)
-    if hrp then hrp.Anchored = false end
-end)
-
-Window:AddCommand('DropHats', {}, 'Drops your accessories.', function(Arguments, Speaker)
-    local char = getCharacter(Speaker)
-    if not char then return end
-    for _, v in pairs(char:GetChildren()) do
-        if v:IsA('Accessory') then v.Parent = workspace end
-    end
-end)
-
-Window:AddCommand('DelHats', {}, 'Deletes your accessories.', function(Arguments, Speaker)
-    local char = getCharacter(Speaker)
-    if not char then return end
-    for _, v in pairs(char:GetChildren()) do
-        if v:IsA('Accessory') then v:Destroy() end
-    end
-end)
-
-Window:AddCommand('DropTools', {}, 'Drops all tools from backpack.', function(Arguments, Speaker)
-    for _, v in pairs(Speaker.Backpack:GetChildren()) do
-        v.Parent = workspace
-    end
-    local char = getCharacter(Speaker)
-    if char then
-        for _, v in pairs(char:GetChildren()) do
-            if v:IsA('Tool') then v.Parent = workspace end
+Window:AddCommand('Orbit',{'Player','Speed','Dist'},'Orbit around a player.',function(a,s)
+    local t=findPlayer(a[1]); if not t then return end
+    local spd=tonumber(a[2]) or 2; local dist=tonumber(a[3]) or 10
+    orbitConn=Kill(orbitConn); local angle=0
+    orbitConn=RunService.Heartbeat:Connect(function(dt)
+        local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart'); local r=R(s)
+        if tr and r then
+            angle=angle+dt*spd
+            r.CFrame=CFrame.new(tr.Position.X+math.cos(angle)*dist,tr.Position.Y,tr.Position.Z+math.sin(angle)*dist)
         end
+    end); N('Orbit','Orbiting '..t.Name..'. ;unorbit to stop.')
+end)
+Window:AddCommand('Unorbit',{},'Stops orbiting.',function(a,s)
+    orbitConn=Kill(orbitConn); N('Orbit','OFF.')
+end)
+Window:AddCommand('Stare',{'Player'},'Stare at a player.',function(a,s)
+    local t=findPlayer(a[1]); if not t then return end
+    stareConn=Kill(stareConn)
+    stareConn=RunService.RenderStepped:Connect(function()
+        local r=R(s); local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+        if r and tr then r.CFrame=CFrame.new(r.Position,Vector3.new(tr.Position.X,r.Position.Y,tr.Position.Z)) end
+    end); N('Stare','ON: '..t.Name)
+end)
+Window:AddCommand('UnStare',{},'Stops staring.',function(a,s)
+    stareConn=Kill(stareConn); N('Stare','OFF.')
+end)
+Window:AddCommand('Scare',{'Player'},'TP in front of player for 0.5s.',function(a,s)
+    local t=findPlayer(a[1]); local r=R(s); if not t or not r then return end
+    local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+    if tr then
+        local orig=r.CFrame; r.CFrame=tr.CFrame+tr.CFrame.LookVector*3
+        task.delay(0.5,function() local r2=R(s); if r2 then r2.CFrame=orig end end)
     end
 end)
-
-Window:AddCommand('DelTools', {}, 'Deletes all tools.', function(Arguments, Speaker)
-    for _, v in pairs(Speaker.Backpack:GetChildren()) do
-        v:Destroy()
+Window:AddCommand('Carpet',{'Player'},'Be someone\'s carpet.',function(a,s)
+    local t=findPlayer(a[1]); local r=R(s); if not t or not r then return end
+    local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+    if tr then
+        local w=Instance.new('WeldConstraint'); w.Name='V0idCarpet'; w.Part0=r; w.Part1=tr; w.Parent=r
+        r.CFrame=tr.CFrame-Vector3.new(0,3,0)
     end
 end)
-
-Window:AddCommand('Anim', {'AnimationID'}, 'Plays an animation by ID.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if not hum then return end
-    local anim = Instance.new('Animation')
-    anim.AnimationId = 'rbxassetid://' .. (Arguments[1] or '507770453')
-    local track = hum:LoadAnimation(anim)
-    track:Play()
+Window:AddCommand('UnCarpet',{},'Removes carpet.',function(a,s)
+    local r=R(s); if not r then return end
+    for _,v in pairs(r:GetChildren()) do if v.Name=='V0idCarpet' then v:Destroy() end end
 end)
-
-Window:AddCommand('AnimSpeed', {'Speed'}, 'Sets animation speed.', function(Arguments, Speaker)
-    local hum = getHumanoid(Speaker)
-    if hum then
-        for _, track in pairs(hum:GetPlayingAnimationTracks()) do
-            track:AdjustSpeed(tonumber(Arguments[1]) or 1)
-        end
+Window:AddCommand('HeadSit',{'Player'},'Sit on a player\'s head.',function(a,s)
+    local t=findPlayer(a[1]); local r=R(s); if not t or not r then return end
+    local th=t.Character and t.Character:FindFirstChild('Head')
+    if th then r.CFrame=th.CFrame+Vector3.new(0,3,0) end
+end)
+Window:AddCommand('Friend',{'Player'},'Send friend request.',function(a,s)
+    local t=findPlayer(a[1]); if t then LocalPlayer:RequestFriendship(t); N('Friend','Sent to '..t.Name..'.') end
+end)
+Window:AddCommand('UnFriend',{'Player'},'Unfriend a player.',function(a,s)
+    local t=findPlayer(a[1]); if t then LocalPlayer:RevokeFriendship(t); N('UnFriend','Unfriended '..t.Name..'.') end
+end)
+Window:AddCommand('Fling',{'Player'},'Flings a player.',function(a,s)
+    local t=a[1] and findPlayer(a[1])
+    local tr=t and t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+    if tr then
+        local bv=Instance.new('BodyVelocity')
+        bv.Velocity=Vector3.new(math.random(-500,500),800,math.random(-500,500))
+        bv.MaxForce=Vector3.new(1e9,1e9,1e9); bv.Parent=tr
+        game:GetService('Debris'):AddItem(bv,0.1)
     end
 end)
-
-Window:AddCommand('Attach', {'Player'}, 'Attaches you to a player.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1])
-    local hrp = getHRP(Speaker)
-    local tHRP = target and target.Character and target.Character:FindFirstChild('HumanoidRootPart')
-    if hrp and tHRP then
-        local weld = Instance.new('WeldConstraint')
-        weld.Part0 = hrp
-        weld.Part1 = tHRP
-        weld.Parent = hrp
+Window:AddCommand('AntiFling',{},'Removes collision to prevent fling.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,p in pairs(c:GetDescendants()) do if p:IsA('BasePart') then p.CanCollide=false end end
+    N('AntiFling','ON.')
+end)
+Window:AddCommand('UnAntiFling',{},'Restores collision.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,p in pairs(c:GetDescendants()) do if p:IsA('BasePart') then p.CanCollide=true end end
+    N('AntiFling','OFF.')
+end)
+Window:AddCommand('LoopKill',{'Player'},'Loop kills a player.',function(a,s)
+    local t=findPlayer(a[1]); if not t then return end
+    loopKillConn=Kill(loopKillConn)
+    loopKillConn=RunService.Heartbeat:Connect(function()
+        local th=t.Character and t.Character:FindFirstChildOfClass('Humanoid'); if th then th.Health=0 end
+    end); N('LoopKill','ON: '..t.Name..'. ;unloopkill to stop.')
+end)
+Window:AddCommand('UnLoopKill',{},'Stops LoopKill.',function(a,s)
+    loopKillConn=Kill(loopKillConn); N('LoopKill','OFF.')
+end)
+Window:AddCommand('HitBox',{'Player','Size','Trans'},'Expands a player\'s hitbox.',function(a,s)
+    local t=a[1] and findPlayer(a[1]); local sz=tonumber(a[2]) or 10; local tr2=tonumber(a[3]) or 0.5
+    if t then local r2=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+        if r2 then r2.Size=Vector3.new(sz,sz,sz); r2.Transparency=tr2 end end
+end)
+Window:AddCommand('Explode',{},'Creates explosion at your position.',function(a,s)
+    local r=R(s); if r then local e=Instance.new('Explosion'); e.Position=r.Position; e.Parent=workspace end
+end)
+Window:AddCommand('Bang',{'Player','Speed'},'owo',function(a,s)
+    local t=findPlayer(a[1]); local r=R(s)
+    local tr=t and t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+    if r and tr then
+        r.CFrame=tr.CFrame+tr.CFrame.LookVector*2; local sp=tonumber(a[2]) or 10
+        local bv=Instance.new('BodyVelocity'); bv.MaxForce=Vector3.new(1e4,0,1e4); bv.Parent=r
+        local tm=0; local cn; cn=RunService.Heartbeat:Connect(function(dt)
+            tm=tm+dt*sp; bv.Velocity=r.CFrame.LookVector*math.sin(tm)*sp
+        end); task.delay(5,function() cn:Disconnect(); bv:Destroy() end)
     end
 end)
-
-Window:AddCommand('Unattach', {}, 'Removes all welds from HRP.', function(Arguments, Speaker)
-    local hrp = getHRP(Speaker)
-    if hrp then
-        for _, v in pairs(hrp:GetChildren()) do
-            if v:IsA('WeldConstraint') then v:Destroy() end
-        end
-    end
+Window:AddCommand('Jerk',{},'Makes you jork it.',function(a,s)
+    local r=R(s); if not r then return end
+    local bv=Instance.new('BodyVelocity'); bv.MaxForce=Vector3.new(1e4,0,1e4); bv.Parent=r
+    local tm=0; local cn; cn=RunService.Heartbeat:Connect(function(dt)
+        tm=tm+dt*20; bv.Velocity=r.CFrame.LookVector*math.sin(tm)*20
+    end); task.delay(5,function() cn:Disconnect(); bv:Destroy() end)
 end)
 
-Window:AddCommand('Gravity', {'Value'}, 'Sets gravity.', function(Arguments, Speaker)
-    workspace.Gravity = tonumber(Arguments[1]) or 196.2
+-- ---- APPEARANCE ----
+Window:AddCommand('Invisible',{},'Makes you invisible.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,p in pairs(c:GetDescendants()) do
+        if p:IsA('BasePart') then p.Transparency=1 elseif p:IsA('Decal') then p.Transparency=1 end
+    end; N('Invisible','ON.')
+end)
+Window:AddCommand('Visible',{},'Makes you visible.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,p in pairs(c:GetDescendants()) do
+        if p:IsA('BasePart') then p.Transparency=0 elseif p:IsA('Decal') then p.Transparency=0 end
+    end; N('Visible','ON.')
+end)
+Window:AddCommand('DropHats',{},'Drops accessories into workspace.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetChildren()) do if v:IsA('Accessory') then v.Parent=workspace end end
+end)
+Window:AddCommand('DelHats',{},'Deletes accessories.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetChildren()) do if v:IsA('Accessory') then v:Destroy() end end
+end)
+Window:AddCommand('NoArms',{},'Removes arms.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,n in ipairs({'Left Arm','Right Arm','LeftUpperArm','RightUpperArm','LeftLowerArm','RightLowerArm','LeftHand','RightHand'}) do
+        local p=c:FindFirstChild(n); if p then p:Destroy() end end
+end)
+Window:AddCommand('NoLegs',{},'Removes legs.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,n in ipairs({'Left Leg','Right Leg','LeftUpperLeg','RightUpperLeg','LeftLowerLeg','RightLowerLeg','LeftFoot','RightFoot'}) do
+        local p=c:FindFirstChild(n); if p then p:Destroy() end end
+end)
+Window:AddCommand('NoLimbs',{},'Removes all limbs.',function(a,s)
+    local fn1=Registry['noarms']; if fn1 then fn1({},s) end
+    local fn2=Registry['nolegs']; if fn2 then fn2({},s) end
+end)
+Window:AddCommand('Naked',{},'Removes clothing (client).',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetChildren()) do
+        if v:IsA('Shirt') or v:IsA('Pants') or v:IsA('ShirtGraphic') then v:Destroy() end end
+end)
+Window:AddCommand('NoFace',{},'Removes face.',function(a,s)
+    local c=C(s); if not c then return end
+    local head=c:FindFirstChild('Head')
+    if head then for _,v in pairs(head:GetChildren()) do if v:IsA('Decal') then v:Destroy() end end end
+end)
+Window:AddCommand('BlockHead',{},'Turns head into a block.',function(a,s)
+    local c=C(s); if not c then return end
+    local head=c:FindFirstChild('Head')
+    if head then local m=head:FindFirstChildOfClass('SpecialMesh'); if m then m:Destroy() end end
+end)
+Window:AddCommand('BlockHats',{},'Turns accessories into blocks.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetDescendants()) do if v:IsA('SpecialMesh') then v:Destroy() end end
+end)
+Window:AddCommand('Creeper',{},'Makes you green.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,p in pairs(c:GetDescendants()) do
+        if p:IsA('BasePart') then p.BrickColor=BrickColor.new('Bright green') end end
+end)
+Window:AddCommand('HatSpin',{},'Spins accessories.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,acc in pairs(c:GetChildren()) do
+        if acc:IsA('Accessory') then
+            local part=acc:FindFirstChildOfClass('Part') or acc:FindFirstChildOfClass('MeshPart')
+            if part then
+                local b=Instance.new('BodyAngularVelocity')
+                b.AngularVelocity=Vector3.new(0,10,0); b.MaxTorque=Vector3.new(0,1e5,0); b.Parent=part
+            end end end; N('HatSpin','ON.')
+end)
+Window:AddCommand('UnHatSpin',{},'Stops hat spin.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetDescendants()) do if v:IsA('BodyAngularVelocity') then v:Destroy() end end
+end)
+Window:AddCommand('ClearChar',{},'Clears accessories, clothes, body colors.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetChildren()) do
+        if v:IsA('Accessory') or v:IsA('Shirt') or v:IsA('Pants') or v:IsA('BodyColors') or v:IsA('CharacterMesh') then
+            v:Destroy() end end; N('ClearChar','Done.')
+end)
+Window:AddCommand('NoBillboardGui',{},'Removes billboard/surface GUIs from character.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetDescendants()) do
+        if v:IsA('BillboardGui') or v:IsA('SurfaceGui') then v:Destroy() end end
+end)
+Window:AddCommand('LoopNoBgui',{},'Loops removing billboard GUIs.',function(a,s)
+    loopNoBguiConn=Kill(loopNoBguiConn)
+    loopNoBguiConn=RunService.Heartbeat:Connect(function()
+        local c=C(s); if not c then return end
+        for _,v in pairs(c:GetDescendants()) do
+            if v:IsA('BillboardGui') or v:IsA('SurfaceGui') then v:Destroy() end end
+    end); N('LoopNoBgui','ON.')
+end)
+Window:AddCommand('UnLoopNoBgui',{},'Stops LoopNoBgui.',function(a,s)
+    loopNoBguiConn=Kill(loopNoBguiConn); N('LoopNoBgui','OFF.')
+end)
+Window:AddCommand('NilChar',{},'Sets character parent to nil.',function(a,s)
+    local c=C(s); if c then c.Parent=nil end
+end)
+Window:AddCommand('UnNilChar',{},'Restores character to workspace.',function(a,s)
+    local c=C(s); if c then c.Parent=workspace end
+end)
+Window:AddCommand('NoRoot',{},'Removes HumanoidRootPart.',function(a,s)
+    local r=R(s); if r then r:Destroy() end
+end)
+Window:AddCommand('DeleteVelocity',{},'Removes all BodyMovers from character.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetDescendants()) do if v:IsA('BodyMover') then v:Destroy() end end
+end)
+Window:AddCommand('CharDelete',{'Name'},'Removes part by name from character.',function(a,s)
+    local c=C(s); if not c or not a[1] then return end
+    for _,v in pairs(c:GetChildren()) do if v.Name:lower()==a[1]:lower() then v:Destroy() end end
+end)
+Window:AddCommand('Team',{'TeamName'},'Changes your team (client).',function(a,s)
+    local name=table.concat(a,' ')
+    for _,t in pairs(game:GetService('Teams'):GetTeams()) do
+        if t.Name:lower():find(name:lower(),1,true) then s.Team=t; N('Team','Team: '..t.Name) return end end
+    N('Team','Not found: '..name)
 end)
 
-Window:AddCommand('Explode', {}, 'Creates an explosion at your position.', function(Arguments, Speaker)
-    local hrp = getHRP(Speaker)
-    if hrp then
-        local explosion = Instance.new('Explosion')
-        explosion.Position = hrp.Position
-        explosion.Parent = workspace
-    end
+-- ---- ANIMATIONS ----
+Window:AddCommand('Anim',{'ID','Speed'},'Plays animation by ID.',function(a,s)
+    local h=H(s); if not h then return end
+    local an=Instance.new('Animation'); an.AnimationId='rbxassetid://'..(a[1] or '507770453')
+    local tr=h:LoadAnimation(an); tr:Play()
+    if a[2] then tr:AdjustSpeed(tonumber(a[2]) or 1) end
+end)
+Window:AddCommand('Emote',{'ID','Speed'},'Plays emote by ID.',function(a,s)
+    local fn=Registry['anim']; if fn then fn(a,s) end
+end)
+Window:AddCommand('Dance',{},'Makes you dance.',function(a,s)
+    local h=H(s); if not h then return end
+    local ids={507771019,507771677,507772104}
+    local an=Instance.new('Animation'); an.AnimationId='rbxassetid://'..ids[math.random(1,#ids)]
+    h:LoadAnimation(an):Play(); N('Dance','Dancing! ;undance to stop.')
+end)
+Window:AddCommand('UnDance',{},'Stops dance animations.',function(a,s)
+    local h=H(s); if h then for _,t in pairs(h:GetPlayingAnimationTracks()) do t:Stop() end end
+end)
+Window:AddCommand('NoAnim',{},'Disables animations.',function(a,s)
+    local h=H(s); if h then
+        for _,t in pairs(h:GetPlayingAnimationTracks()) do t:Stop() end; h.Animator.Enabled=false end
+end)
+Window:AddCommand('ReAnim',{},'Re-enables animations.',function(a,s)
+    local h=H(s); if h then h.Animator.Enabled=true end
+end)
+Window:AddCommand('AnimSpeed',{'Speed'},'Changes animation speed.',function(a,s)
+    local h=H(s); if h then
+        for _,t in pairs(h:GetPlayingAnimationTracks()) do t:AdjustSpeed(tonumber(a[1]) or 1) end end
+end)
+Window:AddCommand('LoopAnim',{},'Loops current animation.',function(a,s)
+    local h=H(s); if h then
+        for _,t in pairs(h:GetPlayingAnimationTracks()) do t.Looped=true end end; N('LoopAnim','ON.')
+end)
+Window:AddCommand('StopAnims',{},'Stops all animations.',function(a,s)
+    local h=H(s); if h then for _,t in pairs(h:GetPlayingAnimationTracks()) do t:Stop() end end
+end)
+Window:AddCommand('FreezeAnims',{},'Freezes animations at current frame.',function(a,s)
+    local h=H(s); if h then
+        for _,t in pairs(h:GetPlayingAnimationTracks()) do t:AdjustSpeed(0) end end; N('FreezeAnims','Frozen.')
+end)
+Window:AddCommand('UnFreezeAnims',{},'Unfreezes animations.',function(a,s)
+    local h=H(s); if h then
+        for _,t in pairs(h:GetPlayingAnimationTracks()) do t:AdjustSpeed(1) end end; N('FreezeAnims','Unfrozen.')
+end)
+Window:AddCommand('CopyAnim',{'Player'},'Copies a player\'s current animation.',function(a,s)
+    local t=findPlayer(a[1]); if not t then return end
+    local th=t.Character and t.Character:FindFirstChildOfClass('Humanoid'); local h=H(s)
+    if th and h then
+        local tracks=th:GetPlayingAnimationTracks()
+        if tracks[1] then
+            local an=Instance.new('Animation'); an.AnimationId=tracks[1].Animation.AnimationId
+            h:LoadAnimation(an):Play(); N('CopyAnim','Copied from '..t.Name..'.')
+        end end
 end)
 
-Window:AddCommand('Fling', {'Player'}, 'Flings a player.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1])
-    local tHRP = target and target.Character and target.Character:FindFirstChild('HumanoidRootPart')
-    if tHRP then
-        local bv = Instance.new('BodyVelocity')
-        bv.Velocity = Vector3.new(math.random(-500,500), 800, math.random(-500,500))
-        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-        bv.Parent = tHRP
-        game:GetService('Debris'):AddItem(bv, 0.1)
-    end
+-- ---- TOOLS ----
+Window:AddCommand('DropTools',{},'Drops all tools.',function(a,s)
+    for _,v in pairs(s.Backpack:GetChildren()) do v.Parent=workspace end
+    local c=C(s); if c then for _,v in pairs(c:GetChildren()) do if v:IsA('Tool') then v.Parent=workspace end end end
+end)
+Window:AddCommand('DelTools',{},'Deletes all tools.',function(a,s)
+    for _,v in pairs(s.Backpack:GetChildren()) do v:Destroy() end
+end)
+Window:AddCommand('Tools',{},'Gets tools from ReplicatedStorage and Lighting.',function(a,s)
+    for _,src in pairs({game:GetService('ReplicatedStorage'),Lighting}) do
+        for _,v in pairs(src:GetDescendants()) do if v:IsA('Tool') then v:Clone().Parent=s.Backpack end end end
+    N('Tools','Tools collected.')
+end)
+Window:AddCommand('GrabTools',{},'Auto-picks up dropped tools.',function(a,s)
+    grabToolsConn=Kill(grabToolsConn)
+    grabToolsConn=workspace.DescendantAdded:Connect(function(v)
+        if v:IsA('Tool') then v.Parent=s.Backpack end end); N('GrabTools','ON.')
+end)
+Window:AddCommand('NoGrabTools',{},'Disables GrabTools.',function(a,s)
+    grabToolsConn=Kill(grabToolsConn); N('GrabTools','OFF.')
+end)
+Window:AddCommand('DupeTools',{'Times'},'Duplicates inventory tools N times.',function(a,s)
+    local n=tonumber(a[1]) or 1; local tools={}
+    for _,v in pairs(s.Backpack:GetChildren()) do if v:IsA('Tool') then tools[#tools+1]=v end end
+    for _,t in pairs(tools) do for i=1,n do t:Clone().Parent=s.Backpack end end; N('DupeTools','x'..n..' done.')
+end)
+Window:AddCommand('EquipTools',{},'Equips all tools at once.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(s.Backpack:GetChildren()) do if v:IsA('Tool') then v.Parent=c end end
+end)
+Window:AddCommand('UnEquipTools',{},'Unequips all tools.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetChildren()) do if v:IsA('Tool') then v.Parent=s.Backpack end end
+end)
+Window:AddCommand('Reach',{'Size'},'Expands held tool hitbox.',function(a,s)
+    local c=C(s); if not c then return end
+    local t=c:FindFirstChildOfClass('Tool'); if t then
+        local handle=t:FindFirstChild('Handle')
+        if handle then local sz=tonumber(a[1]) or 10; handle.Size=Vector3.new(sz,sz,sz) end end
+end)
+Window:AddCommand('UnReach',{},'Resets tool hitbox.',function(a,s)
+    local c=C(s); if not c then return end
+    local t=c:FindFirstChildOfClass('Tool'); if t then
+        local handle=t:FindFirstChild('Handle'); if handle then handle.Size=Vector3.new(1,1,1) end end
+end)
+Window:AddCommand('DeleteSelectedTool',{},'Deletes currently held tool.',function(a,s)
+    local c=C(s); if not c then return end
+    local t=c:FindFirstChildOfClass('Tool'); if t then t:Destroy() end
+end)
+Window:AddCommand('DroppableTools',{},'Makes tools droppable.',function(a,s)
+    local c=C(s); if not c then return end
+    for _,v in pairs(c:GetDescendants()) do if v:IsA('Tool') then v.CanBeDropped=true end end; N('DroppableTools','ON.')
+end)
+Window:AddCommand('BTools',{},'Gives building tools (client).',function(a,s)
+    for _,n in ipairs({'Clone Tool','Delete Tool','Move Tool'}) do
+        local t=Instance.new('Tool'); t.Name=n; t.Parent=s.Backpack end
 end)
 
-Window:AddCommand('Spin', {}, 'Makes you spin rapidly.', function(Arguments, Speaker)
-    local hrp = getHRP(Speaker)
-    if hrp then
-        local bg = Instance.new('BodyAngularVelocity')
-        bg.AngularVelocity = Vector3.new(0, 100, 0)
-        bg.MaxTorque = Vector3.new(0, 1e9, 0)
-        bg.Parent = hrp
-    end
+-- ---- WORLD ----
+Window:AddCommand('Delete',{'Name'},'Deletes workspace parts by name (client).',function(a,s)
+    if not a[1] then return end
+    for _,v in pairs(workspace:GetDescendants()) do if v.Name:lower()==a[1]:lower() then v:Destroy() end end; N('Delete','Done.')
 end)
-
-Window:AddCommand('Unspin', {}, 'Stops spinning.', function(Arguments, Speaker)
-    local hrp = getHRP(Speaker)
-    if hrp then
-        for _, v in pairs(hrp:GetChildren()) do
-            if v:IsA('BodyAngularVelocity') then v:Destroy() end
-        end
-    end
+Window:AddCommand('DeleteClass',{'Class'},'Deletes workspace parts by classname (client).',function(a,s)
+    if not a[1] then return end
+    for _,v in pairs(workspace:GetDescendants()) do if v.ClassName:lower()==a[1]:lower() then v:Destroy() end end; N('DeleteClass','Done.')
 end)
-
-Window:AddCommand('AntiAFK', {}, 'Enables anti-AFK.', function(Arguments, Speaker)
-    if antiAFKConnection then antiAFKConnection:Disconnect() end
-    local vu = game:GetService('VirtualUser')
-    antiAFKConnection = LocalPlayer.Idled:Connect(function()
-        vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-        wait(1)
-        vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+Window:AddCommand('LockWorkspace',{},'Locks all workspace parts.',function(a,s)
+    for _,v in pairs(workspace:GetDescendants()) do if v:IsA('BasePart') then v.Locked=true end end; N('Workspace','Locked.')
+end)
+Window:AddCommand('UnLockWorkspace',{},'Unlocks all workspace parts.',function(a,s)
+    for _,v in pairs(workspace:GetDescendants()) do if v:IsA('BasePart') then v.Locked=false end end; N('Workspace','Unlocked.')
+end)
+Window:AddCommand('RemoveTerrain',{},'Removes all terrain.',function(a,s)
+    workspace.Terrain:Clear(); N('Terrain','Removed.')
+end)
+Window:AddCommand('DestroyHeight',{'Height'},'Sets FallenPartsDestroyHeight.',function(a,s)
+    workspace.FallenPartsDestroyHeight=tonumber(a[1]) or -500; N('DestroyHeight','Set to '..(a[1] or -500)..'.')
+end)
+Window:AddCommand('XRay',{},'Makes workspace parts transparent.',function(a,s)
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA('BasePart') and not v:IsDescendantOf(C(s) or Instance.new('Folder')) then
+            v:SetAttribute('V0id_T',v.Transparency); v.Transparency=0.7 end end; N('XRay','ON. ;noxray to restore.')
+end)
+Window:AddCommand('NoXRay',{},'Restores part transparency.',function(a,s)
+    loopXrayConn=Kill(loopXrayConn)
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA('BasePart') then local t=v:GetAttribute('V0id_T')
+            if t~=nil then v.Transparency=t; v:SetAttribute('V0id_T',nil) end end end; N('XRay','OFF.')
+end)
+Window:AddCommand('LoopXRay',{},'Loops XRay on new parts.',function(a,s)
+    loopXrayConn=Kill(loopXrayConn)
+    loopXrayConn=workspace.DescendantAdded:Connect(function(v)
+        if v:IsA('BasePart') and not v:IsDescendantOf(C(s) or Instance.new('Folder')) then v.Transparency=0.7 end
     end)
-    Window:CreateNotification('Anti-AFK', 'Anti-AFK enabled.', 3)
+    local fn=Registry['xray']; if fn then fn({},s) end
+    N('LoopXRay','ON.')
+end)
+Window:AddCommand('InvisParts',{},'Reveals invisible parts (client).',function(a,s)
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA('BasePart') and v.Transparency>=0.9 then v:SetAttribute('V0id_I',true); v.Transparency=0.5 end end; N('InvisParts','Shown.')
+end)
+Window:AddCommand('UnInvisParts',{},'Reverts InvisParts.',function(a,s)
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA('BasePart') and v:GetAttribute('V0id_I') then v.Transparency=1; v:SetAttribute('V0id_I',nil) end end
+end)
+Window:AddCommand('GotoPart',{'Name'},'TP to a part in workspace.',function(a,s)
+    if not a[1] then return end
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA('BasePart') and v.Name:lower()==a[1]:lower() then
+            local r=R(s); if r then r.CFrame=v.CFrame+Vector3.new(0,3,0) end; return end end; N('GotoPart','Not found: '..a[1])
+end)
+Window:AddCommand('BringPart',{'Name'},'Brings a workspace part to you.',function(a,s)
+    if not a[1] then return end; local r=R(s); if not r then return end
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA('BasePart') and v.Name:lower()==a[1]:lower() then v.CFrame=r.CFrame+Vector3.new(3,0,0) end end
+end)
+Window:AddCommand('FireCD',{'Name'},'Fires click detectors.',function(a,s)
+    local n=a[1]; local ct=0
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA('ClickDetector') and (not n or v.Parent.Name:lower()==n:lower()) then
+            local old=v.MaxActivationDistance; v.MaxActivationDistance=math.huge
+            pcall(fireClickDetector,v); v.MaxActivationDistance=old; ct=ct+1 end end; N('FireCD','Fired '..ct..'.')
+end)
+Window:AddCommand('FirePP',{'Name'},'Fires proximity prompts.',function(a,s)
+    local n=a[1]; local ct=0
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA('ProximityPrompt') and (not n or v.Parent.Name:lower()==n:lower()) then
+            local old=v.MaxActivationDistance; v.MaxActivationDistance=math.huge
+            pcall(fireProximityPrompt,v); v.MaxActivationDistance=old; ct=ct+1 end end; N('FirePP','Fired '..ct..'.')
+end)
+Window:AddCommand('InstantPP',{},'Sets all proximity prompt HoldDuration to 0.',function(a,s)
+    for _,v in pairs(workspace:GetDescendants()) do if v:IsA('ProximityPrompt') then v.HoldDuration=0 end end; N('InstantPP','Done.')
+end)
+Window:AddCommand('FireTouchInterests',{'Name'},'Fires touch interests.',function(a,s)
+    local r=R(s); if not r then return end; local n=a[1]
+    for _,v in pairs(workspace:GetDescendants()) do
+        if v:IsA('TouchTransmitter') and (not n or v.Parent.Name:lower()==n:lower()) then
+            pcall(firetouchinterest,r,v.Parent,0); pcall(firetouchinterest,r,v.Parent,1) end end; N('TouchInterests','Fired.')
+end)
+Window:AddCommand('TpUnanchored',{'Player'},'TP all unanchored parts to a player.',function(a,s)
+    local t=a[1] and findPlayer(a[1]) or s; local tr=R(t); if not tr then return end
+    for _,v in pairs(workspace:GetDescendants()) do if v:IsA('BasePart') and not v.Anchored then v.CFrame=tr.CFrame end end; N('TpUnanchored','Done.')
 end)
 
-Window:AddCommand('NoAntiAFK', {}, 'Disables anti-AFK.', function(Arguments, Speaker)
-    if antiAFKConnection then antiAFKConnection:Disconnect() antiAFKConnection = nil end
-    Window:CreateNotification('Anti-AFK', 'Anti-AFK disabled.', 3)
+-- ---- ESP ----
+Window:AddCommand('ESP',{},'Shows ESP for all players.',function(a,s)
+    for _,v in pairs(LocalPlayer.PlayerGui:GetDescendants()) do if v.Name:find('V0idESP') then v:Destroy() end end
+    for _,t in pairs(Players:GetPlayers()) do
+        if t~=s and t.Character then
+            local box=Instance.new('SelectionBox'); box.Adornee=t.Character
+            box.Color3=Color3.fromRGB(255,0,0); box.LineThickness=0.05
+            box.Name='V0idESP_'..t.Name; box.Parent=LocalPlayer.PlayerGui
+            espObjs[t.Name]=box end end; N('ESP','ON. ;noesp to remove.')
+end)
+Window:AddCommand('NoESP',{},'Removes ESP.',function(a,s)
+    for _,v in pairs(LocalPlayer.PlayerGui:GetDescendants()) do if v.Name:find('V0idESP') then v:Destroy() end end
+    espObjs={}; N('ESP','OFF.')
+end)
+Window:AddCommand('Locate',{'Player'},'ESP for a single player.',function(a,s)
+    local t=findPlayer(a[1]); if not t or not t.Character then return end
+    local box=Instance.new('SelectionBox'); box.Adornee=t.Character
+    box.Color3=Color3.fromRGB(0,255,0); box.LineThickness=0.08
+    box.Name='V0idLocate_'..t.Name; box.Parent=LocalPlayer.PlayerGui; N('Locate','ON: '..t.Name)
+end)
+Window:AddCommand('UnLocate',{'Player'},'Removes locate.',function(a,s)
+    local t=findPlayer(a[1]); if t then
+        local v=LocalPlayer.PlayerGui:FindFirstChild('V0idLocate_'..t.Name); if v then v:Destroy() end end
 end)
 
-Window:AddCommand('Follow', {'Player'}, 'Follows a player.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1])
-    if not target then return end
-    if followConnection then followConnection:Disconnect() end
-    followConnection = RunService.Heartbeat:Connect(function()
-        local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
-        local hum = getHumanoid(Speaker)
-        if tHRP and hum then hum:MoveTo(tHRP.Position) end
+-- ---- CAMERA ----
+Window:AddCommand('Spectate',{'Player'},'Spectates a player.',function(a,s)
+    local t=findPlayer(a[1])
+    if t and t.Character then workspace.CurrentCamera.CameraSubject=t.Character:FindFirstChildOfClass('Humanoid') end
+end)
+Window:AddCommand('UnSpectate',{},'Stops spectating.',function(a,s)
+    local c=C(s); if c then workspace.CurrentCamera.CameraSubject=c:FindFirstChildOfClass('Humanoid') end
+end)
+Window:AddCommand('FreeCam',{},'Scriptable free camera.',function(a,s)
+    workspace.CurrentCamera.CameraType=Enum.CameraType.Scriptable; N('FreeCam','ON. ;unfreecam to restore.')
+end)
+Window:AddCommand('UnFreeCam',{},'Restores camera.',function(a,s)
+    workspace.CurrentCamera.CameraType=Enum.CameraType.Custom; N('FreeCam','OFF.')
+end)
+Window:AddCommand('GotoCam',{},'TP to camera position.',function(a,s)
+    local r=R(s); if r then r.CFrame=workspace.CurrentCamera.CFrame end
+end)
+Window:AddCommand('FirstP',{},'Locks to first person.',function(a,s)
+    LocalPlayer.CameraMode=Enum.CameraMode.LockFirstPerson
+end)
+Window:AddCommand('ThirdP',{},'Allows third person.',function(a,s)
+    LocalPlayer.CameraMode=Enum.CameraMode.Classic
+end)
+Window:AddCommand('FOV',{'Value'},'Sets field of view.',function(a,s)
+    workspace.CurrentCamera.FieldOfView=tonumber(a[1]) or 70
+end)
+Window:AddCommand('MaxZoom',{'Value'},'Sets max camera zoom.',function(a,s)
+    LocalPlayer.CameraMaxZoomDistance=tonumber(a[1]) or 400
+end)
+Window:AddCommand('MinZoom',{'Value'},'Sets min camera zoom.',function(a,s)
+    LocalPlayer.CameraMinZoomDistance=tonumber(a[1]) or 0
+end)
+Window:AddCommand('FixCam',{},'Restores camera to defaults.',function(a,s)
+    workspace.CurrentCamera.CameraType=Enum.CameraType.Custom
+    workspace.CurrentCamera.FieldOfView=70; LocalPlayer.CameraMode=Enum.CameraMode.Classic; N('FixCam','Done.')
+end)
+Window:AddCommand('LookAt',{'Player'},'Points camera at a player.',function(a,s)
+    local t=findPlayer(a[1]); if not t then return end
+    local tr=t.Character and t.Character:FindFirstChild('HumanoidRootPart')
+    if tr then workspace.CurrentCamera.CFrame=CFrame.new(workspace.CurrentCamera.CFrame.Position,tr.Position) end
+end)
+
+-- ---- LIGHTING ----
+Window:AddCommand('Fullbright',{},'Max brightness.',function(a,s)
+    Lighting.Brightness=2; Lighting.ClockTime=14; Lighting.FogEnd=1e5; Lighting.GlobalShadows=false
+    Lighting.Ambient=Color3.fromRGB(255,255,255); Lighting.OutdoorAmbient=Color3.fromRGB(255,255,255)
+end)
+Window:AddCommand('Unfullbright',{},'Resets lighting.',function(a,s)
+    loopFBConn=Kill(loopFBConn); Lighting.Brightness=1; Lighting.ClockTime=14; Lighting.FogEnd=1e5
+    Lighting.GlobalShadows=true; Lighting.Ambient=Color3.fromRGB(70,70,70); Lighting.OutdoorAmbient=Color3.fromRGB(128,128,128)
+end)
+Window:AddCommand('LoopFullbright',{},'Loops fullbright.',function(a,s)
+    loopFBConn=Kill(loopFBConn)
+    loopFBConn=RunService.Heartbeat:Connect(function()
+        Lighting.Brightness=2; Lighting.GlobalShadows=false
+        Lighting.Ambient=Color3.fromRGB(255,255,255); Lighting.OutdoorAmbient=Color3.fromRGB(255,255,255)
+    end); N('LoopFullbright','ON.')
+end)
+Window:AddCommand('UnLoopFullbright',{},'Stops LoopFullbright.',function(a,s)
+    loopFBConn=Kill(loopFBConn); N('LoopFullbright','OFF.')
+end)
+Window:AddCommand('Day',{},'Sets time to day.',function(a,s) Lighting.ClockTime=14 end)
+Window:AddCommand('Night',{},'Sets time to night.',function(a,s) Lighting.ClockTime=0 end)
+Window:AddCommand('Time',{'Hour'},'Sets clock time 0-24.',function(a,s) Lighting.ClockTime=tonumber(a[1]) or 12 end)
+Window:AddCommand('Brightness',{'Value'},'Sets lighting brightness.',function(a,s) Lighting.Brightness=tonumber(a[1]) or 1 end)
+Window:AddCommand('NoFog',{},'Removes fog.',function(a,s) Lighting.FogEnd=1e5; Lighting.FogStart=0 end)
+Window:AddCommand('Fog',{'End'},'Sets fog end distance.',function(a,s) Lighting.FogEnd=tonumber(a[1]) or 1e5 end)
+Window:AddCommand('Ambient',{'R','G','B'},'Sets ambient color.',function(a,s)
+    Lighting.Ambient=Color3.fromRGB(tonumber(a[1]) or 0,tonumber(a[2]) or 0,tonumber(a[3]) or 0)
+end)
+Window:AddCommand('GlobalShadows',{},'Enables global shadows.',function(a,s) Lighting.GlobalShadows=true end)
+Window:AddCommand('NoGlobalShadows',{},'Disables global shadows.',function(a,s) Lighting.GlobalShadows=false end)
+Window:AddCommand('RestoreLighting',{},'Resets all lighting to defaults.',function(a,s)
+    Lighting.Brightness=1; Lighting.ClockTime=14; Lighting.FogEnd=1e5; Lighting.FogStart=0
+    Lighting.GlobalShadows=true; Lighting.Ambient=Color3.fromRGB(70,70,70); Lighting.OutdoorAmbient=Color3.fromRGB(128,128,128); N('Lighting','Restored.')
+end)
+Window:AddCommand('Light',{'Range','Brightness'},'Adds point light to your character.',function(a,s)
+    local r=R(s); if not r then return end
+    local l=Instance.new('PointLight'); l.Name='V0idLight'
+    l.Range=tonumber(a[1]) or 20; l.Brightness=tonumber(a[2]) or 5; l.Parent=r
+end)
+Window:AddCommand('NoLight',{},'Removes character point light.',function(a,s)
+    local r=R(s); if r then local l=r:FindFirstChild('V0idLight'); if l then l:Destroy() end end
+end)
+
+-- ---- CHAT ----
+Window:AddCommand('Chat',{'Message'},'Sends a chat message.',function(a,s)
+    local msg=table.concat(a,' ')
+    local ce=game:GetService('ReplicatedStorage'):FindFirstChild('DefaultChatSystemChatEvents')
+    if ce then local ev=ce:FindFirstChild('SayMessageRequest'); if ev then ev:FireServer(msg,'All') end end
+end)
+Window:AddCommand('Say',{'Message'},'Alias for Chat.',function(a,s) local fn=Registry['chat']; if fn then fn(a,s) end end)
+Window:AddCommand('Spam',{'Message'},'Spams chat.',function(a,s)
+    local msg=table.concat(a,' '); spamConn=Kill(spamConn)
+    spamConn=RunService.Heartbeat:Connect(function()
+        local ce=game:GetService('ReplicatedStorage'):FindFirstChild('DefaultChatSystemChatEvents')
+        if ce then local ev=ce:FindFirstChild('SayMessageRequest'); if ev then ev:FireServer(msg,'All') end end
+        task.wait(0.2)
+    end); N('Spam','ON. ;unspam to stop.')
+end)
+Window:AddCommand('UnSpam',{},'Stops spam.',function(a,s)
+    spamConn=Kill(spamConn); N('Spam','OFF.')
+end)
+Window:AddCommand('Whisper',{'Player','Message'},'Whispers a player.',function(a,s)
+    local t=findPlayer(a[1]); if not t then return end
+    local msg=table.concat(a,' ',2)
+    local ce=game:GetService('ReplicatedStorage'):FindFirstChild('DefaultChatSystemChatEvents')
+    if ce then local ev=ce:FindFirstChild('SayMessageRequest')
+        if ev then ev:FireServer('/w '..t.Name..' '..msg,'All') end end
+end)
+Window:AddCommand('ClearChat',{},'Clears chat display (client).',function(a,s)
+    local cg=LocalPlayer.PlayerGui:FindFirstChild('Chat')
+    if cg then for _,v in pairs(cg:GetDescendants()) do if v:IsA('TextLabel') then v.Text='' end end end
+end)
+
+-- ---- SERVER / MISC ----
+Window:AddCommand('Rejoin',{},'Rejoins current game.',function(a,s) TeleportService:Teleport(game.PlaceId,s) end)
+Window:AddCommand('ServerHop',{},'Hops to another server.',function(a,s)
+    local ok,data=pcall(function()
+        return game:GetService('HttpService'):JSONDecode(
+            game:HttpGet('https://games.roblox.com/v1/games/'..game.PlaceId..'/servers/Public?sortOrder=Asc&limit=100'))
     end)
-    Window:CreateNotification('Follow', 'Following ' .. target.Name .. '. Use ;unfollow to stop.', 3)
+    if ok and data and data.data then
+        for _,srv in pairs(data.data) do
+            if srv.id~=game.JobId and srv.playing and srv.maxPlayers and srv.playing<srv.maxPlayers then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId,srv.id,s); return end end end
+    N('ServerHop','No other server found. Rejoining.'); TeleportService:Teleport(game.PlaceId,s)
+end)
+Window:AddCommand('GameTP',{'PlaceID'},'Joins a game by place ID.',function(a,s)
+    local id=tonumber(a[1]); if id then TeleportService:Teleport(id,s) else N('GameTP','Invalid place ID.') end
+end)
+Window:AddCommand('AntiIdle',{},'Prevents AFK kick.',function(a,s)
+    antiAFKConn=Kill(antiAFKConn)
+    antiAFKConn=LocalPlayer.Idled:Connect(function()
+        VirtualUser:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+        task.wait(1); VirtualUser:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+    end); N('AntiIdle','ON.')
+end)
+Window:AddCommand('NoAntiIdle',{},'Disables AntiIdle.',function(a,s)
+    antiAFKConn=Kill(antiAFKConn); N('AntiIdle','OFF.')
+end)
+Window:AddCommand('AutoClick',{'ClickDelay','ReleaseDelay'},'Auto-clicks mouse.',function(a,s)
+    local cd=tonumber(a[1]) or 0.05; local rd=tonumber(a[2]) or 0.05
+    autoClickConn=Kill(autoClickConn); local busy=false
+    autoClickConn=RunService.Heartbeat:Connect(function()
+        if not busy then busy=true; mouse1press()
+            task.delay(rd,function() mouse1release(); task.delay(cd,function() busy=false end) end) end
+    end); N('AutoClick','ON. ;noautoclick to stop.')
+end)
+Window:AddCommand('NoAutoClick',{},'Stops AutoClick.',function(a,s)
+    autoClickConn=Kill(autoClickConn); pcall(mouse1release); N('AutoClick','OFF.')
+end)
+Window:AddCommand('MouseTP',{},'TP to mouse position.',function(a,s)
+    local r=R(s); local mouse=LocalPlayer:GetMouse()
+    if r and mouse.Target then r.CFrame=CFrame.new(mouse.Hit.Position+Vector3.new(0,3,0)) end
+end)
+Window:AddCommand('HoverName',{},'Shows player name on hover.',function(a,s)
+    local pg=LocalPlayer.PlayerGui; local old=pg:FindFirstChild('V0idHoverName'); if old then old:Destroy() end
+    local gui=Instance.new('ScreenGui'); gui.Name='V0idHoverName'; gui.ResetOnSpawn=false
+    local lbl=Instance.new('TextLabel',gui); lbl.Size=UDim2.new(0,200,0,30)
+    lbl.BackgroundTransparency=0.4; lbl.BackgroundColor3=Color3.fromRGB(0,0,0)
+    lbl.TextColor3=Color3.fromRGB(255,255,255); lbl.Text=''; lbl.ZIndex=10; gui.Parent=pg
+    local mouse=LocalPlayer:GetMouse()
+    mouse.Move:Connect(function()
+        local tgt=mouse.Target; if tgt then
+            local p=Players:GetPlayerFromCharacter(tgt.Parent)
+            if p then lbl.Text=p.Name; lbl.Position=UDim2.new(0,mouse.X+10,0,mouse.Y+10); return end end; lbl.Text=''
+    end); N('HoverName','ON. ;unhovername to stop.')
+end)
+Window:AddCommand('UnHoverName',{},'Removes HoverName.',function(a,s)
+    local v=LocalPlayer.PlayerGui:FindFirstChild('V0idHoverName'); if v then v:Destroy() end; N('HoverName','OFF.')
+end)
+Window:AddCommand('Kick',{'Player'},'Kicks a player (or yourself).',function(a,s)
+    local t=a[1] and findPlayer(a[1]); if t then t:Kick('Kicked.') else s:Kick('Kicked.') end
+end)
+Window:AddCommand('Disconnect',{},'Disconnects from server.',function(a,s) LocalPlayer:Kick('Disconnected.') end)
+Window:AddCommand('LoopOof',{},'Loops character sounds for all.',function(a,s)
+    for _,p in pairs(Players:GetPlayers()) do
+        if p.Character then local r=p.Character:FindFirstChild('HumanoidRootPart')
+            if r then for _,snd in pairs(r:GetChildren()) do if snd:IsA('Sound') then snd:Play() end end end end end
+end)
+Window:AddCommand('NoPrompts',{},'Prevents purchase prompts.',function(a,s)
+    pcall(function()
+        game:GetService('MarketplaceService').PromptPurchaseRequested:Connect(function() end) end); N('NoPrompts','ON.')
 end)
 
-Window:AddCommand('Unfollow', {}, 'Stops following.', function(Arguments, Speaker)
-    if followConnection then followConnection:Disconnect() followConnection = nil end
-    Window:CreateNotification('Follow', 'Stopped following.', 3)
-end)
-
-Window:AddCommand('Orbit', {'Player'}, 'Orbits around a player.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1])
-    if not target then return end
-    if orbitConnection then orbitConnection:Disconnect() end
-    local angle = 0
-    orbitConnection = RunService.Heartbeat:Connect(function(dt)
-        local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
-        local hrp = getHRP(Speaker)
-        if tHRP and hrp then
-            angle = angle + dt * 2
-            local x = tHRP.Position.X + math.cos(angle) * 10
-            local z = tHRP.Position.Z + math.sin(angle) * 10
-            hrp.CFrame = CFrame.new(x, tHRP.Position.Y, z)
-        end
-    end)
-    Window:CreateNotification('Orbit', 'Orbiting ' .. target.Name .. '. Use ;unorbit to stop.', 3)
-end)
-
-Window:AddCommand('Unorbit', {}, 'Stops orbiting.', function(Arguments, Speaker)
-    if orbitConnection then orbitConnection:Disconnect() orbitConnection = nil end
-    Window:CreateNotification('Orbit', 'Stopped orbiting.', 3)
-end)
-
-Window:AddCommand('LoopKill', {'Player'}, 'Loops killing a player.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1])
-    if not target then return end
-    if loopKillConnection then loopKillConnection:Disconnect() end
-    loopKillConnection = RunService.Heartbeat:Connect(function()
-        local tHum = target.Character and target.Character:FindFirstChildOfClass('Humanoid')
-        if tHum then tHum.Health = 0 end
-    end)
-    Window:CreateNotification('LoopKill', 'Loop killing ' .. target.Name .. '. Use ;unloopkill to stop.', 3)
-end)
-
-Window:AddCommand('UnloopKill', {}, 'Stops loop killing.', function(Arguments, Speaker)
-    if loopKillConnection then loopKillConnection:Disconnect() loopKillConnection = nil end
-    Window:CreateNotification('LoopKill', 'Stopped loop killing.', 3)
-end)
-
-Window:AddCommand('BreakLoops', {}, 'Stops all active loops.', function(Arguments, Speaker)
-    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
-    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
-    if infiniteJumpConnection then infiniteJumpConnection:Disconnect() infiniteJumpConnection = nil end
-    if loopKillConnection then loopKillConnection:Disconnect() loopKillConnection = nil end
-    if followConnection then followConnection:Disconnect() followConnection = nil end
-    if orbitConnection then orbitConnection:Disconnect() orbitConnection = nil end
-    if antiAFKConnection then antiAFKConnection:Disconnect() antiAFKConnection = nil end
-    local hum = getHumanoid(Speaker)
-    if hum then hum.PlatformStand = false end
-    local hrp = getHRP(Speaker)
-    if hrp then
-        for _, v in pairs(hrp:GetChildren()) do
-            if v:IsA('BodyMover') then v:Destroy() end
-        end
-    end
-    Window:CreateNotification('BreakLoops', 'All loops stopped.', 3)
-end)
-
-Window:AddCommand('Ping', {}, 'Prints your ping.', function(Arguments, Speaker)
-    print('Ping: ' .. math.floor(LocalPlayer:GetNetworkPing() * 1000) .. 'ms')
-end)
-
-Window:AddCommand('Players', {}, 'Lists all players in the server.', function(Arguments, Speaker)
-    for _, p in pairs(Players:GetPlayers()) do
-        print(p.Name .. ' (' .. p.DisplayName .. ')')
-    end
-end)
-
-Window:AddCommand('ID', {'Player'}, 'Prints a player\'s user ID.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1]) or Speaker
-    print(target.UserId)
-end)
-
-Window:AddCommand('Age', {'Player'}, 'Prints a player\'s account age.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1]) or Speaker
-    print(target.AccountAge .. ' days old')
-end)
-
-Window:AddCommand('Team', {'Player'}, 'Prints a player\'s team.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1]) or Speaker
-    print(target.Team and target.Team.Name or 'No team')
-end)
-
-Window:AddCommand('Fullbright', {}, 'Sets max brightness.', function(Arguments, Speaker)
-    game.Lighting.Brightness = 2
-    game.Lighting.ClockTime = 14
-    game.Lighting.FogEnd = 100000
-    game.Lighting.GlobalShadows = false
-    game.Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-    game.Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-end)
-
-Window:AddCommand('Unfullbright', {}, 'Resets lighting to default.', function(Arguments, Speaker)
-    game.Lighting.Brightness = 1
-    game.Lighting.ClockTime = 14
-    game.Lighting.FogEnd = 100000
-    game.Lighting.GlobalShadows = true
-    game.Lighting.Ambient = Color3.fromRGB(70, 70, 70)
-    game.Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
-end)
-
-Window:AddCommand('Time', {'TimeOfDay'}, 'Sets the time of day (0-24).', function(Arguments, Speaker)
-    game.Lighting.ClockTime = tonumber(Arguments[1]) or 12
-end)
-
-Window:AddCommand('Day', {}, 'Sets time to day.', function(Arguments, Speaker)
-    game.Lighting.ClockTime = 14
-end)
-
-Window:AddCommand('Night', {}, 'Sets time to night.', function(Arguments, Speaker)
-    game.Lighting.ClockTime = 0
-end)
-
-Window:AddCommand('Brightness', {'Value'}, 'Sets lighting brightness.', function(Arguments, Speaker)
-    game.Lighting.Brightness = tonumber(Arguments[1]) or 1
-end)
-
-Window:AddCommand('Fog', {'End'}, 'Sets fog end distance.', function(Arguments, Speaker)
-    game.Lighting.FogEnd = tonumber(Arguments[1]) or 100000
-end)
-
-Window:AddCommand('NoFog', {}, 'Removes fog.', function(Arguments, Speaker)
-    game.Lighting.FogEnd = 100000
-    game.Lighting.FogStart = 0
-end)
-
-Window:AddCommand('Ambient', {'R', 'G', 'B'}, 'Sets ambient lighting color.', function(Arguments, Speaker)
-    game.Lighting.Ambient = Color3.fromRGB(
-        tonumber(Arguments[1]) or 0,
-        tonumber(Arguments[2]) or 0,
-        tonumber(Arguments[3]) or 0
-    )
-end)
-
-Window:AddCommand('CameraLock', {}, 'Locks camera to first person.', function(Arguments, Speaker)
-    LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
-end)
-
-Window:AddCommand('CameraUnlock', {}, 'Unlocks camera.', function(Arguments, Speaker)
-    LocalPlayer.CameraMode = Enum.CameraMode.Classic
-end)
-
-Window:AddCommand('FOV', {'Value'}, 'Sets camera FOV.', function(Arguments, Speaker)
-    workspace.CurrentCamera.FieldOfView = tonumber(Arguments[1]) or 70
-end)
-
-Window:AddCommand('Zoom', {'Value'}, 'Sets max zoom distance.', function(Arguments, Speaker)
-    LocalPlayer.CameraMaxZoomDistance = tonumber(Arguments[1]) or 400
-end)
-
-Window:AddCommand('Rejoin', {}, 'Rejoins the current game.', function(Arguments, Speaker)
-    TeleportService:Teleport(game.PlaceId, Speaker)
-end)
-
-Window:AddCommand('ServerHop', {}, 'Hops to a new server.', function(Arguments, Speaker)
-    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Speaker)
-end)
-
-Window:AddCommand('ExecScript', {'URL'}, 'Loads and executes a script from a URL.', function(Arguments, Speaker)
-    loadstring(game:HttpGet(Arguments[1], true))()
-end)
-
-Window:AddCommand('ClearChat', {}, 'Clears the chat log.', function(Arguments, Speaker)
-    local ChatGui = LocalPlayer.PlayerGui:FindFirstChild('Chat')
-    if ChatGui then
-        for _, v in pairs(ChatGui:GetDescendants()) do
-            if v:IsA('TextLabel') then v.Text = '' end
-        end
-    end
-end)
-
-Window:AddCommand('Chat', {'Message'}, 'Sends a chat message.', function(Arguments, Speaker)
-    local ChatEvents = game:GetService('ReplicatedStorage'):FindFirstChild('DefaultChatSystemChatEvents')
-    if ChatEvents then
-        ChatEvents.SayMessageRequest:FireServer(Arguments[1], 'All')
-    end
-end)
-
-Window:AddCommand('Desc', {'Player'}, 'Prints a player\'s profile URL.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1]) or Speaker
-    print('https://www.roblox.com/users/' .. target.UserId .. '/profile')
-end)
-
-Window:AddCommand('Kick', {'Player'}, 'Kicks a player.', function(Arguments, Speaker)
-    local target = findPlayer(Arguments[1])
-    if target then target:Kick('You have been kicked.') end
-end)
-
-Window:AddCommand('Disconnect', {}, 'Disconnects you from the server.', function(Arguments, Speaker)
-    LocalPlayer:Kick('Disconnected by command.')
-end)
-
-Window:AddCommand('BTools', {}, 'Gives you building tools.', function(Arguments, Speaker)
-    local tools = {'Clone', 'Delete', 'Move'}
-    for _, name in pairs(tools) do
-        local tool = Instance.new('Tool')
-        tool.Name = name .. ' Tool'
-        tool.Parent = Speaker.Backpack
-    end
-end)
-
-Window:AddTheme('test', {
-    BackgroundColor = Color3.fromRGB(0, 255, 255),
-    SecondaryColor = Color3.fromRGB(225, 225, 225),
-    AccentColor = Color3.fromRGB(125, 125, 125),
-    PrimaryTextColor = Color3.fromRGB(0, 0, 0),
-    SecondaryTextColor = Color3.fromRGB(75, 75, 75)
-})
+N('V0id','All commands loaded! Prefix: '..prefix, 5)
+print('[V0id] Commands loaded. Prefix: '..prefix)
