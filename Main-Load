@@ -148,15 +148,17 @@ task.spawn(function()
     task.wait(2)
     local pg = LocalPlayer:WaitForChild('PlayerGui', 10)
     if not pg then return end
-    UserInputService.InputBegan:Connect(function(inp)
+    -- Cache focused box reference instead of scanning all descendants every keypress
+    local function getFocusedTextBox()
+        return UserInputService:GetFocusedTextBox()
+    end
+    UserInputService.InputBegan:Connect(function(inp, gameProcessed)
         if inp.KeyCode ~= Enum.KeyCode.Return and
            inp.KeyCode ~= Enum.KeyCode.KeypadEnter then return end
-        for _, v in pairs(pg:GetDescendants()) do
-            if v:IsA('TextBox') and v:IsFocused() then
-                local txt = v.Text
-                task.defer(function() execute(txt) end)
-                return
-            end
+        local focused = getFocusedTextBox()
+        if focused then
+            local txt = focused.Text
+            task.defer(function() execute(txt) end)
         end
     end)
 end)
