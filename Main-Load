@@ -1,7 +1,3 @@
--- ============================================================
--- V0ID COMMAND UI LIBRARY  |  Final Edition
--- Fixes + Improvements + New Commands
--- ============================================================
 local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/B0Xaz-Engi/Void-Command-s/refs/heads/main/Lib-Load', true))()
 print("Library loaded:", Library)
 
@@ -17,9 +13,6 @@ local Window = Library:CreateWindow({
     Prefix             = ';'
 })
 
--- ============================================================
--- SERVICES
--- ============================================================
 local Players            = game:GetService('Players')
 local RunService         = game:GetService('RunService')
 local UserInputService   = game:GetService('UserInputService')
@@ -35,9 +28,6 @@ local Teams              = game:GetService('Teams')
 local HttpService        = game:GetService('HttpService')
 local LocalPlayer        = Players.LocalPlayer
 
--- ============================================================
--- STATE  (all connection variables declared here)
--- ============================================================
 local flyConn, noclipConn, infjumpConn, loopKillConn         = nil,nil,nil,nil
 local followConn, orbitConn, antiAFKConn, loopGotoConn       = nil,nil,nil,nil
 local loopBringConn, loopSpeedConn, loopJumpConn             = nil,nil,nil
@@ -59,16 +49,12 @@ local espObjs    = {}
 local chatLog    = {}
 local alarmActive= false
 
--- ============================================================
--- HELPERS
--- ============================================================
 local function C(p)    return p and p.Character end
 local function H(p)    local c=C(p); return c and c:FindFirstChildOfClass('Humanoid') end
 local function R(p)    local c=C(p); return c and c:FindFirstChild('HumanoidRootPart') end
 local function N(t,m,d) Window:CreateNotification(t,m,d or 3) end
 local function Kill(c) if c then c:Disconnect() end return nil end
 
--- Safe wrappers for executor-specific globals
 local function safeFireCD(cd)
     pcall(function() fireClickDetector(cd) end)
 end
@@ -80,7 +66,6 @@ local function safeFireTouch(hrp, part)
     pcall(function() firetouchinterest(hrp, part, 1) end)
 end
 
--- Get all BaseParts of a character (used often)
 local function charParts(p)
     local c = C(p); if not c then return {} end
     local out = {}
@@ -90,21 +75,16 @@ local function charParts(p)
     return out
 end
 
--- Safely remove all children of a class from an instance
 local function cleanChildren(inst, className)
     for _, v in pairs(inst:GetChildren()) do
         if v:IsA(className) then v:Destroy() end
     end
 end
 
--- ============================================================
--- PLAYER FINDER  (fuzzy/partial, "me"/"self" shortcuts)
--- ============================================================
 local function findPlayer(name)
     if not name or name == '' then return nil end
     local q = name:lower()
     if q == 'me' or q == 'self' then return LocalPlayer end
-    -- Random player shortcut
     if q == 'random' or q == 'rand' then
         local pl = Players:GetPlayers()
         local others = {}
@@ -127,17 +107,11 @@ local function findPlayer(name)
     return best
 end
 
--- ============================================================
--- TRACK LAST DEATH
--- ============================================================
 LocalPlayer.CharacterRemoving:Connect(function(c)
     local r = c:FindFirstChild('HumanoidRootPart')
     if r then lastDeath = r.CFrame end
 end)
 
--- ============================================================
--- COMMAND REGISTRY  (intercept Window:AddCommand)
--- ============================================================
 local prefix   = ';'
 local Registry = {}
 
@@ -147,9 +121,6 @@ Window.AddCommand = function(self, cmdName, args, desc, callback)
     return _libAddCommand(self, cmdName, args, desc, callback)
 end
 
--- ============================================================
--- CHAT EXECUTION ENGINE
--- ============================================================
 local function execute(msg)
     if type(msg) ~= 'string' then return end
     msg = msg:match('^%s*(.-)%s*$')
@@ -173,7 +144,6 @@ end
 
 LocalPlayer.Chatted:Connect(execute)
 
--- TextBox hook (fires before server receives message)
 task.spawn(function()
     task.wait(2)
     local pg = LocalPlayer:WaitForChild('PlayerGui', 10)
@@ -191,9 +161,6 @@ task.spawn(function()
     end)
 end)
 
--- ============================================================
--- CHAT HELPER  (unified send function)
--- ============================================================
 local function sendChat(msg)
     local ce = ReplicatedStorage:FindFirstChild('DefaultChatSystemChatEvents')
     if ce then
@@ -202,9 +169,6 @@ local function sendChat(msg)
     end
 end
 
--- ============================================================
--- THEMES
--- ============================================================
 local Themes = {
     Default   = { BackgroundColor=Color3.fromRGB(25,25,25),    SecondaryColor=Color3.fromRGB(35,35,35),    AccentColor=Color3.fromRGB(50,138,220),  PrimaryTextColor=Color3.fromRGB(240,240,240), SecondaryTextColor=Color3.fromRGB(178,178,178) },
     AmberGlow = { BackgroundColor=Color3.fromRGB(45,30,20),    SecondaryColor=Color3.fromRGB(60,45,35),    AccentColor=Color3.fromRGB(250,150,75),  PrimaryTextColor=Color3.fromRGB(255,245,230), SecondaryTextColor=Color3.fromRGB(190,150,130) },
@@ -219,16 +183,6 @@ local Themes = {
     Rose      = { BackgroundColor=Color3.fromRGB(30,10,20),    SecondaryColor=Color3.fromRGB(50,20,35),    AccentColor=Color3.fromRGB(220,80,120),  PrimaryTextColor=Color3.fromRGB(255,230,240), SecondaryTextColor=Color3.fromRGB(180,120,150) },
 }
 Window:AddTheme('test', { BackgroundColor=Color3.fromRGB(0,255,255), SecondaryColor=Color3.fromRGB(225,225,225), AccentColor=Color3.fromRGB(125,125,125), PrimaryTextColor=Color3.fromRGB(0,0,0), SecondaryTextColor=Color3.fromRGB(75,75,75) })
-
--- ================================================================
--- ================================================================
---  COMMANDS
--- ================================================================
--- ================================================================
-
--- ════════════════════════════════════════
---  SYSTEM
--- ════════════════════════════════════════
 
 Window:AddCommand('SetPrefix', {'Prefix'}, 'Changes command prefix.', function(a)
     prefix = a[1] or ';'
@@ -282,7 +236,6 @@ Window:AddCommand('Render', {}, 'Re-enables 3D rendering.', function()
     RunService:Set3dRenderingEnabled(true); N('Render', 'ON.')
 end)
 
--- FIX: Quality must be 1-10; Level01 is correct but also expose a numeric option
 Window:AddCommand('Quality', {'Level'}, 'Set graphics quality 1-10.', function(a)
     local lv = math.clamp(tonumber(a[1]) or 1, 1, 10)
     settings().Rendering.QualityLevel = Enum.QualityLevel['Level0'..lv] or Enum.QualityLevel.Level01
@@ -303,7 +256,6 @@ Window:AddCommand('ExecScript', {'URL'}, 'Loads and executes a script from a URL
     if not ok then N('ExecScript', 'Error: '..tostring(err), 6) end
 end)
 
--- FIX: BreakLoops now cleans up every tracked connection including new ones
 Window:AddCommand('BreakLoops', {}, 'Stops ALL active loops and resets physics.', function(a, s)
     flyConn=Kill(flyConn);          noclipConn=Kill(noclipConn);      infjumpConn=Kill(infjumpConn)
     loopKillConn=Kill(loopKillConn);followConn=Kill(followConn);      orbitConn=Kill(orbitConn)
@@ -325,7 +277,7 @@ Window:AddCommand('BreakLoops', {}, 'Stops ALL active loops and resets physics.'
         r.Anchored = false
         for _, v in pairs(r:GetChildren()) do if v:IsA('BodyMover') then v:Destroy() end end
     end
-    -- Remove HUD elements
+
     local pg = LocalPlayer.PlayerGui
     for _, name in ipairs({'V0idHealthBar','V0idCoords','V0idHoverName','V0idChatLog'}) do
         local gui = pg:FindFirstChild(name); if gui then gui:Destroy() end
@@ -333,7 +285,6 @@ Window:AddCommand('BreakLoops', {}, 'Stops ALL active loops and resets physics.'
     N('BreakLoops', 'All loops stopped.')
 end)
 
--- Shows which loops are on
 Window:AddCommand('ActiveLoops', {}, 'Lists currently active loops.', function()
     local checks = {
         {flyConn,        'Fly'},    {cflyConn,       'CFly'},
@@ -356,9 +307,6 @@ Window:AddCommand('ActiveLoops', {}, 'Lists currently active loops.', function()
     N('ActiveLoops', #active > 0 and table.concat(active, ', ') or 'None.', 8)
 end)
 
--- ════════════════════════════════════════
---  PLAYER INFO
--- ════════════════════════════════════════
 
 Window:AddCommand('Players', {}, 'Lists all players in server.', function()
     for _, p in pairs(Players:GetPlayers()) do
@@ -413,7 +361,6 @@ Window:AddCommand('FindFriendGroups', {}, 'Finds friend pairs in the server.', f
     if not found then N('Friends', 'No friend pairs found.') end
 end)
 
--- NEW: shows a full info card for a player
 Window:AddCommand('Info', {'Player'}, 'Prints detailed info about a player.', function(a, s)
     local t = findPlayer(a[1]) or s
     local lines = {
@@ -428,7 +375,6 @@ Window:AddCommand('Info', {'Player'}, 'Prints detailed info about a player.', fu
     N('Info', t.Name..' | ID '..t.UserId, 7)
 end)
 
--- NEW: watch when a player joins or leaves
 Window:AddCommand('WatchJoins', {}, 'Notifies when players join/leave.', function()
     Players.PlayerAdded:Connect(function(p)
         N('Join', p.Name..' joined!', 5)
@@ -438,10 +384,6 @@ Window:AddCommand('WatchJoins', {}, 'Notifies when players join/leave.', functio
     end)
     N('WatchJoins', 'ON.')
 end)
-
--- ════════════════════════════════════════
---  HEALTH
--- ════════════════════════════════════════
 
 Window:AddCommand('Kill', {}, 'Kills your character.', function(a, s)
     local h = H(s); if h then h.Health = 0 end
@@ -455,7 +397,6 @@ Window:AddCommand('Reset', {}, 'Alias for Kill.', function(a, s)
     local h = H(s); if h then h.Health = 0 end
 end)
 
--- FIX: Refresh now runs in a task.spawn so CharacterAdded:Wait() doesn't yield the command
 Window:AddCommand('Refresh', {}, 'Respawns at current position.', function(a, s)
     local pos = R(s) and R(s).CFrame
     task.spawn(function()
@@ -491,7 +432,6 @@ Window:AddCommand('Ungod', {}, 'Resets health to 100.', function(a, s)
     N('God', 'OFF.')
 end)
 
--- NEW: LoopGod — re-applies god after any damage event
 Window:AddCommand('LoopGod', {}, 'Loops god mode so it can\'t be removed.', function(a, s)
     loopGodConn = Kill(loopGodConn)
     loopGodConn = RunService.Heartbeat:Connect(function()
@@ -517,7 +457,6 @@ Window:AddCommand('PermaDeath', {}, 'Prevents respawning after death.', function
     N('PermaDeath', 'ON.')
 end)
 
--- NEW: HealAll — heals every player's humanoid (client-side; only works on humanoids you can write to)
 Window:AddCommand('HealAll', {}, 'Sets everyone\'s health to max (client).', function()
     for _, p in pairs(Players:GetPlayers()) do
         local h = H(p)
@@ -526,7 +465,6 @@ Window:AddCommand('HealAll', {}, 'Sets everyone\'s health to max (client).', fun
     N('HealAll', 'Done.')
 end)
 
--- NEW: HealthBar — shows a live health bar HUD
 Window:AddCommand('HealthBar', {}, 'Shows a health bar HUD.', function(a, s)
     healthBarConn = Kill(healthBarConn)
     local pg = LocalPlayer.PlayerGui
@@ -561,10 +499,6 @@ Window:AddCommand('NoHealthBar', {}, 'Removes the health bar HUD.', function()
     if v then v:Destroy() end
     N('HealthBar', 'OFF.')
 end)
-
--- ════════════════════════════════════════
---  MOVEMENT
--- ════════════════════════════════════════
 
 Window:AddCommand('Speed', {'WalkSpeed'}, 'Sets walkspeed (default 16).', function(a, s)
     local h = H(s); if h then h.WalkSpeed = tonumber(a[1]) or 16 end
@@ -675,7 +609,6 @@ Window:AddCommand('NoInfJump', {}, 'Disables infinite jump.', function()
     infjumpConn = Kill(infjumpConn); N('InfJump', 'OFF.')
 end)
 
--- FIX: FlyJump — read velocity before overwriting so X/Z are preserved
 Window:AddCommand('FlyJump', {}, 'Hold Space to push upward.', function(a, s)
     flyJumpConn = Kill(flyJumpConn)
     flyJumpConn = RunService.Heartbeat:Connect(function()
@@ -754,7 +687,6 @@ Window:AddCommand('Float', {}, 'Spawns a platform beneath you.', function(a, s)
     local old = workspace:FindFirstChild('V0idFloat'); if old then old:Destroy() end
     local p = Instance.new('Part'); p.Name = 'V0idFloat'; p.Size = Vector3.new(6, 0.5, 6)
     p.Anchored = false; p.CFrame = r.CFrame - Vector3.new(0, 3.5, 0); p.Parent = workspace
-    -- FIX: Weld to HRP so it stays with the player
     local w = Instance.new('WeldConstraint'); w.Part0 = p; w.Part1 = r; w.Parent = p
     N('Float', 'ON. ;unfloat to remove.')
 end)
@@ -780,33 +712,26 @@ Window:AddCommand('UnAntiVoid', {}, 'Disables AntiVoid.', function()
 end)
 
 Window:AddCommand('FakeOut', {}, 'Teleports to void briefly then snaps back (anti-detection attempt)', function(args, speaker)
-    local root = R(speaker)                      -- get current HumanoidRootPart
+    local root = R(speaker)
     if not root then return end
     
-    local originalCFrame = root.CFrame           -- store exact position & orientation
-    local originalVelocity = root.AssemblyLinearVelocity  -- some games check velocity
-    
-    -- Void position - deep enough but not absurdly deep
+    local originalCFrame = root.CFrame
+    local originalVelocity = root.AssemblyLinearVelocity
+
     root.CFrame = CFrame.new(0, -2000, 0)
     
-    -- Optional: give tiny downward velocity to look more like falling
-    -- root.AssemblyLinearVelocity = Vector3.new(0, -30, 0)
+    task.wait(0.08 + math.random(1, 12)/100)
     
-    -- Much shorter & randomized wait → harder to pattern-match
-    task.wait(0.08 + math.random(1, 12)/100)     -- ~0.08–0.20 s
-    
-    -- Re-get root because character can be destroyed/recreated
     local newRoot = R(speaker)
     if newRoot then
-        -- Preserve network ownership if possible (helps in some games)
         if newRoot:IsDescendantOf(workspace) then
             pcall(function()
-                newRoot:SetNetworkOwner(nil)         -- or speaker if you want to force
+                newRoot:SetNetworkOwner(nil)
             end)
         end
         
         newRoot.CFrame = originalCFrame
-        newRoot.AssemblyLinearVelocity = originalVelocity  -- restore old velocity
+        newRoot.AssemblyLinearVelocity = originalVelocity
     end
     
     N('FakeOut', 'Done (void → snap back)')
@@ -828,7 +753,6 @@ Window:AddCommand('UnTpWalk', {}, 'Disables TpWalk.', function()
     tpWalkConn = Kill(tpWalkConn); N('TpWalk', 'OFF.')
 end)
 
--- FIX: WallWalk — uses modern RaycastParams; also smooths look direction
 Window:AddCommand('WallWalk', {}, 'Walk on walls and ceilings.', function(a, s)
     wallWalkConn = Kill(wallWalkConn)
     local params = RaycastParams.new()
@@ -849,7 +773,6 @@ Window:AddCommand('UnWallWalk', {}, 'Disables WallWalk.', function()
     wallWalkConn = Kill(wallWalkConn); N('WallWalk', 'OFF.')
 end)
 
--- FIX: Weaken/Strengthen — removed the broken IsDescendantOf(Instance.new('Folder')) check
 Window:AddCommand('Weaken', {'Density'}, 'Reduces character density (floatier physics).', function(a, s)
     local d = tonumber(a[1]) or 0.1
     for _, p in pairs(charParts(s)) do
@@ -873,7 +796,6 @@ Window:AddCommand('Strengthen', {'Density'}, 'Increases character density (heavi
     N('Strengthen', 'Density: '..d)
 end)
 
--- NEW: AntiSlip — forces friction to max so character doesn't slide
 Window:AddCommand('AntiSlip', {}, 'Prevents sliding on slippery surfaces.', function(a, s)
     antiSlipConn = Kill(antiSlipConn)
     antiSlipConn = RunService.Heartbeat:Connect(function()
@@ -894,7 +816,6 @@ Window:AddCommand('UnAntiSlip', {}, 'Disables AntiSlip.', function()
     antiSlipConn = Kill(antiSlipConn); N('AntiSlip', 'OFF.')
 end)
 
--- NEW: GroundCheck — teleports you up if you clip through the floor
 Window:AddCommand('GroundCheck', {}, 'Auto-corrects if you fall through the floor.', function(a, s)
     groundCheckConn = Kill(groundCheckConn)
     local params = RaycastParams.new()
@@ -914,14 +835,9 @@ Window:AddCommand('UnGroundCheck', {}, 'Disables GroundCheck.', function()
     groundCheckConn = Kill(groundCheckConn); N('GroundCheck', 'OFF.')
 end)
 
--- ════════════════════════════════════════
---  FLY
--- ════════════════════════════════════════
-
 Window:AddCommand('Fly', {'Speed'}, 'Fly with WASD + Space/Shift.', function(a, s)
     local r = R(s); local h = H(s); if not r or not h then return end
     flyConn = Kill(flyConn)
-    -- Clean up old movers
     for _, v in pairs(r:GetChildren()) do
         if v:IsA('BodyVelocity') or v:IsA('BodyGyro') then v:Destroy() end
     end
@@ -940,7 +856,6 @@ Window:AddCommand('Fly', {'Speed'}, 'Fly with WASD + Space/Shift.', function(a, 
         if uis:IsKeyDown(Enum.KeyCode.D)         then dir = dir + cam.CFrame.RightVector end
         if uis:IsKeyDown(Enum.KeyCode.Space)     then dir = dir + Vector3.yAxis           end
         if uis:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.yAxis           end
-        -- Shift to sprint mid-fly
         local spd = flySpeed * (uis:IsKeyDown(Enum.KeyCode.LeftControl) and 3 or 1)
         bv.Velocity = dir.Magnitude > 0 and dir.Unit * spd or Vector3.zero
         bg.CFrame = cam.CFrame
@@ -960,7 +875,6 @@ Window:AddCommand('FlySpeed', {'Speed'}, 'Changes fly speed mid-flight.', functi
     flySpeed = tonumber(a[1]) or 50; N('FlySpeed', flySpeed)
 end)
 
--- FIX: CFly — normalize direction so diagonal speed isn't faster
 Window:AddCommand('CFly', {'Speed'}, 'CFrame-based fly (bypasses some anti-cheats).', function(a, s)
     cflyConn = Kill(cflyConn); cflySpeed = tonumber(a[1]) or cflySpeed
     cflyConn = RunService.RenderStepped:Connect(function(dt)
@@ -988,7 +902,6 @@ Window:AddCommand('CFlySpeed', {'Speed'}, 'Sets CFly speed.', function(a)
     cflySpeed = tonumber(a[1]) or 50; N('CFlySpeed', cflySpeed)
 end)
 
--- FIX: VFly — same normalize fix as CFly
 Window:AddCommand('VFly', {'Speed'}, 'Fly while seated in a vehicle.', function(a, s)
     vflyConn = Kill(vflyConn); vflySpeed = tonumber(a[1]) or vflySpeed
     vflyConn = RunService.RenderStepped:Connect(function(dt)
@@ -1012,11 +925,6 @@ Window:AddCommand('UnVFly', {}, 'Disables VFly.', function()
     vflyConn = Kill(vflyConn); N('VFly', 'OFF.')
 end)
 
--- ════════════════════════════════════════
---  NOCLIP
--- ════════════════════════════════════════
-
--- FIX: Noclip — refresh character ref each frame in case of respawn
 Window:AddCommand('Noclip', {}, 'Walk through walls.', function(a, s)
     noclipConn = Kill(noclipConn)
     noclipConn = RunService.Stepped:Connect(function()
@@ -1031,10 +939,6 @@ end)
 Window:AddCommand('Clip', {}, 'Disables noclip.', function()
     noclipConn = Kill(noclipConn); N('Noclip', 'OFF.')
 end)
-
--- ════════════════════════════════════════
---  TELEPORT
--- ════════════════════════════════════════
 
 local function doGoto(a, s)
     local name = table.concat(a, ' ')
@@ -1101,7 +1005,6 @@ Window:AddCommand('NotifyPos', {'Player'}, 'Shows a player\'s current position.'
     end
 end)
 
--- NEW: Coords HUD — shows your XYZ live on screen
 Window:AddCommand('Coords', {}, 'Shows a live XYZ coordinates HUD.', function(a, s)
     coordsConn = Kill(coordsConn)
     local pg = LocalPlayer.PlayerGui
@@ -1130,7 +1033,6 @@ Window:AddCommand('NoCoords', {}, 'Removes the coords HUD.', function()
     N('Coords', 'OFF.')
 end)
 
--- FIX: SpawnPoint — tracked with spawnConn to prevent stacking connections
 Window:AddCommand('SpawnPoint', {}, 'Sets a custom spawn point at your position.', function(a, s)
     local r = R(s); if r then spawnPoint = r.CFrame end
     spawnConn = Kill(spawnConn)
@@ -1186,7 +1088,6 @@ Window:AddCommand('PulseTP', {'Player','Seconds'}, 'TP to player, return after N
     end
 end)
 
--- NEW: TpAll — TP to every player in succession
 Window:AddCommand('TpAll', {'Delay'}, 'TP to every player one-by-one.', function(a, s)
     local delay = tonumber(a[1]) or 1
     task.spawn(function()
@@ -1201,10 +1102,6 @@ Window:AddCommand('TpAll', {'Delay'}, 'TP to every player one-by-one.', function
         N('TpAll', 'Done.')
     end)
 end)
-
--- ════════════════════════════════════════
---  WAYPOINTS
--- ════════════════════════════════════════
 
 Window:AddCommand('SetWaypoint', {'Name'}, 'Save current position as a named waypoint.', function(a, s)
     local r = R(s); local n = a[1] or 'wp'
@@ -1239,10 +1136,6 @@ Window:AddCommand('Waypoints', {}, 'Lists all saved waypoints.', function()
     N('Waypoints', #l > 0 and table.concat(l, ', ') or 'None.', 6)
 end)
 
--- ════════════════════════════════════════
---  PLAYER INTERACTIONS
--- ════════════════════════════════════════
-
 Window:AddCommand('Bring', {'Player'}, 'Brings a player to your position.', function(a, s)
     local t = findPlayer(a[1]); local r = R(s)
     if t and r then
@@ -1266,7 +1159,6 @@ Window:AddCommand('UnLoopBring', {}, 'Stops LoopBring.', function()
     loopBringConn = Kill(loopBringConn); N('LoopBring', 'OFF.')
 end)
 
--- FIX: Freeze / Thaw — also handle self if no arg given
 Window:AddCommand('Freeze', {'Player'}, 'Anchors a player\'s HRP (client).', function(a, s)
     local t = (a[1] and findPlayer(a[1])) or s
     local r = t.Character and t.Character:FindFirstChild('HumanoidRootPart') or R(s)
@@ -1433,7 +1325,6 @@ Window:AddCommand('Explode', {}, 'Creates an explosion at your position.', funct
     if r then local e = Instance.new('Explosion'); e.Position = r.Position; e.Parent = workspace end
 end)
 
--- FIX: Bang / Jerk — fixed BodyVelocity so it properly idles (not spamming old values)
 Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams their back (CFrame-locked, gradual stop to prevent fling).', function(a, s)
     local t = findPlayer(a[1])
     local r = R(s)
@@ -1475,11 +1366,9 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams t
         r.CFrame = CFrame.lookAt(finalPos, finalPos + baseCF.LookVector)
     end)
 
-    -- Gradual fade-out over ~1-2 seconds to bleed off any residual velocity smoothly
     task.spawn(function()
-        task.wait(15)  -- main duration
+        task.wait(15)
 
-        -- Fade phase: slowly reduce oscillation amplitude to 0 over 1.5s
         local fadeDuration = 1.5
         local fadeStart = tick()
         while tick() - fadeStart < fadeDuration do
@@ -1493,24 +1382,21 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams t
             if not tr or not r then break end
 
             local baseCF = tr.CFrame * CFrame.new(0, 0, -baseDist)
-            local oscDist = -baseDist + (math.sin(tm) * currentAmp)  -- tm continues, but amp fades
+            local oscDist = -baseDist + (math.sin(tm) * currentAmp)
             local finalPos = baseCF.Position + (baseCF.LookVector * oscDist)
             r.CFrame = CFrame.lookAt(finalPos, finalPos + baseCF.LookVector)
 
             task.wait()
         end
 
-        -- Final settle: exact position, zero velocities
         r = R(s)
         if r then
             r.AssemblyLinearVelocity = Vector3.zero
             r.AssemblyAngularVelocity = Vector3.zero
         end
 
-        -- Unlock controls gradually
         if hum then
             hum.PlatformStand = false
-            -- Optional: tiny delay helps some games
             task.wait(0.2)
         end
 
@@ -1533,7 +1419,6 @@ Window:AddCommand('Jerk', {}, 'Oscillates your character back and forth.', funct
     task.delay(5, function() cn:Disconnect(); bv:Destroy() end)
 end)
 
--- NEW: Distance — tells you how far you are from a player
 Window:AddCommand('Distance', {'Player'}, 'Shows your distance from a player.', function(a, s)
     local t = findPlayer(a[1])
     if not t then N('Distance', 'Player not found.') return end
@@ -1544,12 +1429,10 @@ Window:AddCommand('Distance', {'Player'}, 'Shows your distance from a player.', 
     end
 end)
 
--- NEW: BubbleChat — makes a bubble above your head
 Window:AddCommand('BubbleChat', {'Message'}, 'Shows a bubble chat above your head repeatedly.', function(a, s)
     loopBubbleConn = Kill(loopBubbleConn)
     local msg = table.concat(a, ' ')
     if msg == '' then N('BubbleChat', 'Provide a message.') return end
-    -- Use StarterGui:SetCore to trigger bubble
     loopBubbleConn = RunService.Heartbeat:Connect(function()
         local c = C(s)
         if c then
@@ -1566,10 +1449,6 @@ end)
 Window:AddCommand('UnBubbleChat', {}, 'Stops BubbleChat loop.', function()
     loopBubbleConn = Kill(loopBubbleConn); N('BubbleChat', 'OFF.')
 end)
-
--- ════════════════════════════════════════
---  APPEARANCE
--- ════════════════════════════════════════
 
 Window:AddCommand('Invisible', {}, 'Makes your character invisible.', function(a, s)
     local c = C(s); if not c then return end
@@ -1652,8 +1531,6 @@ Window:AddCommand('Creeper', {}, 'Turns you bright green.', function(a, s)
         if p:IsA('BasePart') then p.BrickColor = BrickColor.new('Bright green') end
     end
 end)
-
--- FIX: Visible now correctly skips HRP transparency (it should stay 1)
 
 Window:AddCommand('HatSpin', {}, 'Spins your accessories.', function(a, s)
     local c = C(s); if not c then return end
@@ -1742,7 +1619,6 @@ Window:AddCommand('Team', {'TeamName'}, 'Changes your team (client).', function(
     N('Team', 'Not found: '..name)
 end)
 
--- NEW: ColorChar — tint entire character a color
 Window:AddCommand('ColorChar', {'R','G','B'}, 'Tints your character (R G B, 0-255).', function(a, s)
     local r = tonumber(a[1]) or 255
     local g = tonumber(a[2]) or 255
@@ -1755,7 +1631,6 @@ Window:AddCommand('ColorChar', {'R','G','B'}, 'Tints your character (R G B, 0-25
     N('ColorChar', ('RGB(%d,%d,%d)'):format(r,g,b))
 end)
 
--- NEW: GlowChar — adds a neon color to character parts
 Window:AddCommand('GlowChar', {'R','G','B'}, 'Makes your character glow (R G B).', function(a, s)
     local r = tonumber(a[1]) or 0
     local g = tonumber(a[2]) or 200
@@ -1778,7 +1653,6 @@ Window:AddCommand('UnGlowChar', {}, 'Removes the glow (resets material to Smooth
     N('GlowChar', 'OFF.')
 end)
 
--- NEW: BigChar / SmallChar — scales the character
 Window:AddCommand('BigChar', {'Scale'}, 'Scales your character up.', function(a, s)
     local scale = tonumber(a[1]) or 2
     local c = C(s); if not c then return end
@@ -1809,10 +1683,6 @@ Window:AddCommand('ResetScale', {}, 'Resets character scale to 1.', function(a, 
     end
     N('ResetScale', 'Done.')
 end)
-
--- ════════════════════════════════════════
---  ANIMATIONS
--- ════════════════════════════════════════
 
 Window:AddCommand('Anim', {'ID','Speed'}, 'Plays an animation by asset ID.', function(a, s)
     local h = H(s); if not h then return end
@@ -1902,10 +1772,6 @@ Window:AddCommand('CopyAnim', {'Player'}, 'Copies and plays a player\'s current 
     end
 end)
 
--- ════════════════════════════════════════
---  TOOLS
--- ════════════════════════════════════════
-
 Window:AddCommand('DropTools', {}, 'Drops all tools to workspace.', function(a, s)
     for _, v in pairs(s.Backpack:GetChildren()) do v.Parent = workspace end
     local c = C(s)
@@ -1991,10 +1857,6 @@ Window:AddCommand('BTools', {}, 'Gives building tools (client-side).', function(
     end
 end)
 
--- ════════════════════════════════════════
---  WORLD
--- ════════════════════════════════════════
-
 Window:AddCommand('Delete', {'Name'}, 'Deletes workspace parts by name.', function(a)
     if not a[1] then return end
     for _, v in pairs(workspace:GetDescendants()) do
@@ -2030,7 +1892,6 @@ Window:AddCommand('DestroyHeight', {'Height'}, 'Sets FallenPartsDestroyHeight.',
     N('DestroyHeight', 'Set to '..(a[1] or -500)..'.')
 end)
 
--- FIX: XRay — corrected IsDescendantOf check with actual char reference
 Window:AddCommand('XRay', {}, 'Makes non-character parts transparent.', function(a, s)
     local char = C(s)
     for _, v in pairs(workspace:GetDescendants()) do
@@ -2154,7 +2015,6 @@ Window:AddCommand('TpUnanchored', {'Player'}, 'TPs all unanchored parts to a pla
     N('TpUnanchored', 'Moved '..count..' parts.')
 end)
 
--- NEW: AnchorAll — anchors everything in workspace
 Window:AddCommand('AnchorAll', {}, 'Anchors all unanchored workspace parts (freeze world).', function()
     local count = 0
     for _, v in pairs(workspace:GetDescendants()) do
@@ -2171,7 +2031,6 @@ Window:AddCommand('UnAnchorAll', {}, 'Unanchors all workspace parts.', function(
     N('UnAnchorAll', count..' parts unanchored.')
 end)
 
--- NEW: CleanPhysics — removes all BodyMovers from workspace
 Window:AddCommand('CleanPhysics', {}, 'Removes all BodyMovers from workspace.', function()
     local count = 0
     for _, v in pairs(workspace:GetDescendants()) do
@@ -2180,13 +2039,7 @@ Window:AddCommand('CleanPhysics', {}, 'Removes all BodyMovers from workspace.', 
     N('CleanPhysics', count..' movers removed.')
 end)
 
--- ════════════════════════════════════════
---  ESP
--- ════════════════════════════════════════
-
--- FIX: ESP — now handles respawns and player removals gracefully
 Window:AddCommand('ESP', {}, 'Draws selection boxes around all players.', function(a, s)
-    -- Remove old
     for _, v in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
         if v.Name:find('V0idESP') then v:Destroy() end
     end
@@ -2205,12 +2058,10 @@ Window:AddCommand('ESP', {}, 'Draws selection boxes around all players.', functi
 
     for _, p in pairs(Players:GetPlayers()) do makeBox(p) end
 
-    -- Re-adorn on respawn
     espUpdateConn = Players.PlayerAdded:Connect(makeBox)
     local charConn = Players.PlayerRemoving:Connect(function(p)
         if espObjs[p.Name] then espObjs[p.Name]:Destroy(); espObjs[p.Name] = nil end
     end)
-    -- Reconnect on character respawn
     RunService.Heartbeat:Connect(function()
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= s and espObjs[p.Name] and p.Character then
@@ -2251,7 +2102,6 @@ Window:AddCommand('UnLocate', {'Player'}, 'Removes a player\'s locate highlight.
     end
 end)
 
--- NEW: Highlight — uses Highlight instance for a more visible ESP glow
 Window:AddCommand('Highlight', {'Player'}, 'Adds a highlight glow to a player.', function(a, s)
     local t = findPlayer(a[1])
     if not t or not t.Character then N('Highlight', 'Player not found.') return end
@@ -2285,10 +2135,6 @@ Window:AddCommand('HighlightAll', {}, 'Highlights all players.', function(a, s)
     end
     N('HighlightAll', 'Done.')
 end)
-
--- ════════════════════════════════════════
---  CAMERA
--- ════════════════════════════════════════
 
 Window:AddCommand('Spectate', {'Player'}, 'Spectates a player.', function(a, s)
     local t = findPlayer(a[1])
@@ -2351,16 +2197,11 @@ Window:AddCommand('LookAt', {'Player'}, 'Points your camera toward a player.', f
     end
 end)
 
--- NEW: ZoomOut / ZoomIn shortcuts
 Window:AddCommand('ZoomOut', {'Amount'}, 'Zooms out the camera.', function(a)
     local cam = workspace.CurrentCamera
     local cf = cam.CFrame
     cam.CFrame = cf - cf.LookVector * (tonumber(a[1]) or 20)
 end)
-
--- ════════════════════════════════════════
---  LIGHTING
--- ════════════════════════════════════════
 
 Window:AddCommand('Fullbright', {}, 'Sets maximum brightness and removes shadows.', function()
     Lighting.Brightness = 2; Lighting.ClockTime = 14; Lighting.FogEnd = 1e5
@@ -2431,7 +2272,6 @@ Window:AddCommand('NoLight', {}, 'Removes character point light.', function(a, s
     if r then local l = r:FindFirstChild('V0idLight'); if l then l:Destroy() end end
 end)
 
--- NEW: SkyBox — inserts a simple sky (change asset IDs for different skyboxes)
 Window:AddCommand('NoSky', {}, 'Removes the sky from Lighting.', function()
     local sky = Lighting:FindFirstChildOfClass('Sky')
     if sky then sky:Destroy(); N('Sky', 'Removed.') else N('Sky', 'No sky found.') end
@@ -2449,10 +2289,6 @@ Window:AddCommand('Rainbow', {}, 'Slowly cycles ambient color through rainbow.',
     N('Rainbow', 'ON. ;unfullbright to stop.')
 end)
 
--- ════════════════════════════════════════
---  CHAT
--- ════════════════════════════════════════
-
 Window:AddCommand('Chat', {'Message'}, 'Sends a chat message.', function(a)
     sendChat(table.concat(a, ' '))
 end)
@@ -2465,7 +2301,6 @@ Window:AddCommand('ChatTeam', {'Message'}, 'Sends a team chat message.', functio
     sendChat('/team '..table.concat(a, ' '))
 end)
 
--- FIX: Spam — use os.clock() timer, no task.wait inside Heartbeat
 Window:AddCommand('Spam', {'Message'}, 'Spams a message in chat (1 per 0.2s).', function(a)
     local msg = table.concat(a, ' ')
     if msg == '' then N('Spam', 'Provide a message.') return end
@@ -2498,11 +2333,9 @@ Window:AddCommand('ClearChat', {}, 'Clears the chat display (client).', function
     end
 end)
 
--- NEW: ChatLog — logs all chat messages to console
 Window:AddCommand('ChatLog', {}, 'Logs all chat messages to console.', function()
     chatLogConn = Kill(chatLogConn)
     chatLog = {}
-    -- Hook each player's Chatted event
     for _, p in pairs(Players:GetPlayers()) do
         p.Chatted:Connect(function(msg)
             local entry = ('[%s] %s: %s'):format(os.date('%H:%M:%S'), p.Name, msg)
@@ -2523,10 +2356,6 @@ Window:AddCommand('DumpChat', {}, 'Prints entire chat log to console.', function
     for _, l in ipairs(chatLog) do print(l) end
     N('DumpChat', #chatLog..' messages.')
 end)
-
--- ════════════════════════════════════════
---  SERVER / MISC
--- ════════════════════════════════════════
 
 Window:AddCommand('Rejoin', {}, 'Rejoins the current game server.', function(a, s)
     TeleportService:Teleport(game.PlaceId, s)
@@ -2567,7 +2396,6 @@ Window:AddCommand('NoAntiIdle', {}, 'Disables AntiIdle.', function()
     antiAFKConn = Kill(antiAFKConn); N('AntiIdle', 'OFF.')
 end)
 
--- FIX: AutoClick — state machine prevents overlapping press/release cycles
 Window:AddCommand('AutoClick', {'ClickDelay','ReleaseDelay'}, 'Automatically clicks the mouse.', function(a)
     local cd = tonumber(a[1]) or 0.05; local rd = tonumber(a[2]) or 0.05
     autoClickConn = Kill(autoClickConn)
@@ -2594,7 +2422,6 @@ Window:AddCommand('MouseTP', {}, 'TP to wherever your mouse is pointing.', funct
     end
 end)
 
--- FIX: HoverName — connection properly stored and cleaned up
 Window:AddCommand('HoverName', {}, 'Shows a player\'s name when hovering over them.', function(a, s)
     local pg = LocalPlayer.PlayerGui
     local old = pg:FindFirstChild('V0idHoverName'); if old then old:Destroy() end
@@ -2647,7 +2474,6 @@ Window:AddCommand('Disconnect', {}, 'Disconnects from the server.', function(a, 
     s:Kick('Disconnected.')
 end)
 
--- FIX: LoopOof — now tracked connection, won't restart itself
 Window:AddCommand('LoopOof', {}, 'Loops character death sounds for all players.', function()
     loopOofConn = Kill(loopOofConn)
     loopOofConn = RunService.Heartbeat:Connect(function()
@@ -2678,7 +2504,6 @@ Window:AddCommand('NoPrompts', {}, 'Blocks purchase prompts.', function()
     N('NoPrompts', 'ON.')
 end)
 
--- NEW: Alarm — notifies you when a specific player enters/leaves the server
 Window:AddCommand('Alarm', {'Player'}, 'Notifies when a player joins or leaves.', function(a)
     local name = a[1]
     if not name then N('Alarm', 'Provide a player name.') return end
@@ -2695,7 +2520,6 @@ Window:AddCommand('Alarm', {'Player'}, 'Notifies when a player joins or leaves.'
     N('Alarm', 'Watching for: '..name)
 end)
 
--- NEW: LoopRefresh — periodically respawn at same position (anti-kick bypass for some games)
 Window:AddCommand('LoopRefresh', {'Interval'}, 'Respawns at current position every N seconds.', function(a, s)
     local interval = tonumber(a[1]) or 30
     loopRefreshConn = Kill(loopRefreshConn)
@@ -2718,7 +2542,6 @@ Window:AddCommand('UnLoopRefresh', {}, 'Stops LoopRefresh.', function()
     loopRefreshConn = Kill(loopRefreshConn); N('LoopRefresh', 'OFF.')
 end)
 
--- NEW: ListCommands — prints all registered command names
 Window:AddCommand('ListCommands', {}, 'Prints all command names to console.', function()
     local cmds = {}
     for name in pairs(Registry) do cmds[#cmds+1] = name end
@@ -2728,15 +2551,6 @@ Window:AddCommand('ListCommands', {}, 'Prints all command names to console.', fu
     N('Commands', #cmds..' commands. See console.', 5)
 end)
 
--- ============================================================
--- V0ID EXTRA COMMANDS  |  Performance-Fixed Edition
--- Paste BELOW the existing script after the INIT block.
--- All loops use tracked connections killable by ;breakloops.
--- ============================================================
-
--- ════════════════════════════════════════
---  EXTRA STATE  (new tracked connections)
--- ════════════════════════════════════════
 local bounceConn,     hoverConn,      flyCircleConn   = nil,nil,nil
 local rainbowConn,    ghostConn,      speedoConn      = nil,nil,nil
 local fpsConn,        distEspConn,    antiKillConn    = nil,nil,nil
@@ -2745,7 +2559,6 @@ local antiRagConn,    antiSeatConn                    = nil,nil
 local loopWpConn,     discoConn,      magnetConn      = nil,nil,nil
 local healthRegenConn,healthDrainConn                 = nil,nil
 
--- Extend BreakLoops to kill all extra connections too.
 local _origBreakLoops = Registry['breakloops']
 Registry['breakloops'] = function(a, s)
     bounceConn=Kill(bounceConn);       hoverConn=Kill(hoverConn)
@@ -2765,10 +2578,6 @@ Registry['breakloops'] = function(a, s)
     end
     if _origBreakLoops then _origBreakLoops(a, s) end
 end
-
--- ════════════════════════════════════════
---  MOVEMENT EXTRAS
--- ════════════════════════════════════════
 
 Window:AddCommand('Boost', {'Power'}, 'Launches you forward with velocity.', function(a, s)
     local r = R(s); if not r then return end
@@ -2960,10 +2769,6 @@ Window:AddCommand('CenterWorld', {}, 'Teleports to 0, 10, 0.', function(a, s)
     local r = R(s); if r then r.CFrame = CFrame.new(0,10,0) end
 end)
 
--- ════════════════════════════════════════
---  FLY EXTRAS
--- ════════════════════════════════════════
-
 Window:AddCommand('Hover', {'Height'}, 'Locks you at Y=N. ;breakloops to stop.', function(a, s)
     hoverConn = Kill(hoverConn)
     local targetY = tonumber(a[1]) or 20; local last = 0
@@ -3015,10 +2820,6 @@ Window:AddCommand('UnFlyCircle', {}, 'Stops FlyCircle.', function()
     flyCircleConn = Kill(flyCircleConn); N('FlyCircle','OFF.')
 end)
 
--- ════════════════════════════════════════
---  HEALTH EXTRAS
--- ════════════════════════════════════════
-
 Window:AddCommand('HealTo', {'Amount'}, 'Heals to an exact amount.', function(a, s)
     local h = H(s); if h then h.Health = math.min(tonumber(a[1]) or 100, h.MaxHealth) end
 end)
@@ -3067,10 +2868,6 @@ Window:AddCommand('PaperHP', {'HP'}, 'Sets max HP to a tiny value.', function(a,
     local h=H(s); if h then h.MaxHealth=tonumber(a[1]) or 1; h.Health=h.MaxHealth end
     N('PaperHP','HP='..(a[1] or 1)..'.')
 end)
-
--- ════════════════════════════════════════
---  APPEARANCE EXTRAS
--- ════════════════════════════════════════
 
 Window:AddCommand('RainbowChar', {'Duration'}, 'Cycles character color through rainbow. ;breakloops to stop.', function(a, s)
     rainbowConn = Kill(rainbowConn)
@@ -3172,10 +2969,6 @@ Window:AddCommand('PlayerColor', {'Player','R','G','B'}, 'Sets another player\'s
     for _, p in pairs(c:GetDescendants()) do if p:IsA('BasePart') then p.Color=col end end
     N('PlayerColor','Done.')
 end)
-
--- ════════════════════════════════════════
---  WORLD EXTRAS
--- ════════════════════════════════════════
 
 Window:AddCommand('SpawnPart', {'Size'}, 'Spawns a part near you (30s auto-remove).', function(a, s)
     local r=R(s); if not r then return end
@@ -3364,10 +3157,6 @@ Window:AddCommand('Trampoline', {}, 'Spawns a bouncy trampoline below you (60s).
     Debris:AddItem(p,60); N('Trampoline','60s.')
 end)
 
--- ════════════════════════════════════════
---  INTERACTION EXTRAS
--- ════════════════════════════════════════
-
 Window:AddCommand('PushPlayer', {'Player','Force'}, 'Pushes a player away.', function(a, s)
     local t=findPlayer(a[1]); local r=R(s)
     local tr=t and t.Character and t.Character:FindFirstChild('HumanoidRootPart')
@@ -3460,10 +3249,6 @@ Window:AddCommand('Patrol', {'Player1','Player2','Interval'}, 'TP between two pl
     N('Patrol',t1.Name..' <-> '..t2.Name..'.')
 end)
 
--- ════════════════════════════════════════
---  TOOLS EXTRAS
--- ════════════════════════════════════════
-
 Window:AddCommand('GiveAllTools', {}, 'Copies every Tool from workspace/RS/Lighting.', function(a, s)
     for _, src in pairs({workspace, ReplicatedStorage, Lighting}) do
         for _, v in pairs(src:GetDescendants()) do
@@ -3503,10 +3288,6 @@ Window:AddCommand('ListTools', {}, 'Lists all tools in backpack.', function(a, s
     for _, v in pairs(s.Backpack:GetChildren()) do if v:IsA('Tool') then tools[#tools+1]=v.Name end end
     N('Tools', #tools>0 and table.concat(tools,', ') or 'Empty.', 8)
 end)
-
--- ════════════════════════════════════════
---  LIGHTING EXTRAS
--- ════════════════════════════════════════
 
 Window:AddCommand('BlurEffect', {'Size'}, 'Adds blur to Lighting.', function(a)
     local o=Lighting:FindFirstChildOfClass('BlurEffect');if o then o:Destroy() end
@@ -3569,10 +3350,6 @@ Window:AddCommand('UnDisco', {}, 'Stops Disco.', function()
     discoConn=Kill(discoConn); Lighting.Ambient=Color3.fromRGB(70,70,70); N('Disco','OFF.')
 end)
 
--- ════════════════════════════════════════
---  CAMERA EXTRAS
--- ════════════════════════════════════════
-
 Window:AddCommand('Shake', {'Duration','Intensity'}, 'Shakes the camera for N seconds.', function(a)
     local dur=tonumber(a[1]) or 3; local inten=tonumber(a[2]) or 1; local elapsed=0; local cn
     cn=RunService.RenderStepped:Connect(function(dt)
@@ -3600,10 +3377,6 @@ end)
 Window:AddCommand('WideFOV',   {}, 'FOV 110.', function() workspace.CurrentCamera.FieldOfView=110; N('FOV','110.') end)
 Window:AddCommand('NarrowFOV', {}, 'FOV 30.',  function() workspace.CurrentCamera.FieldOfView=30;  N('FOV','30.')  end)
 Window:AddCommand('GotoCam',   {}, 'TP to camera position.', function(a,s) local r=R(s); if r then r.CFrame=workspace.CurrentCamera.CFrame end end)
-
--- ════════════════════════════════════════
---  ESP EXTRAS
--- ════════════════════════════════════════
 
 Window:AddCommand('NameESP', {}, 'Shows names above players (BillboardGui).', function(a, s)
     for _, p in pairs(Players:GetPlayers()) do
@@ -3664,7 +3437,6 @@ Window:AddCommand('NoPingESP', {}, 'Removes ping ESP.', function()
     N('PingESP','OFF.')
 end)
 
--- DistanceESP: updates only 2×/s
 Window:AddCommand('DistanceESP', {}, 'Distance labels above players (2fps update). ;breakloops to stop.', function(a, s)
     distEspConn=Kill(distEspConn)
     for _, p in pairs(Players:GetPlayers()) do
@@ -3704,10 +3476,6 @@ Window:AddCommand('NoDistanceESP', {}, 'Removes distance ESP.', function()
     N('DistanceESP','OFF.')
 end)
 
--- ════════════════════════════════════════
---  ANTI / SAFETY EXTRAS  (all tracked + throttled)
--- ════════════════════════════════════════
-
 Window:AddCommand('AntiKill', {'Duration'}, 'Re-heals if HP < 5. ;breakloops to stop.', function(a, s)
     antiKillConn=Kill(antiKillConn); local dur=tonumber(a[1]) or 120; local last=0
     antiKillConn=RunService.Heartbeat:Connect(function()
@@ -3743,7 +3511,6 @@ Window:AddCommand('AntiSlow', {'Duration'}, 'Restores walkspeed if lowered. ;bre
 end)
 Window:AddCommand('UnAntiSlow', {}, 'Stops AntiSlow.', function() antiSlowConn=Kill(antiSlowConn); N('AntiSlow','OFF.') end)
 
--- AntiDamage: event-driven, zero per-frame cost
 Window:AddCommand('AntiDamage', {'Duration'}, 'Prevents HP from decreasing for N seconds.', function(a, s)
     antiDmgConn=Kill(antiDmgConn); local h=H(s); if not h then return end; local dur=tonumber(a[1]) or 30
     antiDmgConn=h.HealthChanged:Connect(function(v) if v<h.MaxHealth then h.Health=h.MaxHealth end end)
@@ -3782,10 +3549,6 @@ Window:AddCommand('ReturnPos', {}, 'Returns to SafePos.', function(a, s)
     else N('ReturnPos','No safe pos saved.') end
 end)
 
--- ════════════════════════════════════════
---  CHAT EXTRAS
--- ════════════════════════════════════════
-
 Window:AddCommand('SayAll', {'Message'}, 'Whispers message to every player.', function(a, s)
     local msg=table.concat(a,' ')
     task.spawn(function()
@@ -3823,10 +3586,6 @@ Window:AddCommand('Silence', {}, 'Removes V0id sounds from your HRP.', function(
     for _, v in pairs(r:GetChildren()) do if v:IsA('Sound') then v:Destroy() end end
     N('Silence','Done.')
 end)
-
--- ════════════════════════════════════════
---  SERVER / MISC EXTRAS
--- ════════════════════════════════════════
 
 Window:AddCommand('Players2', {}, 'Prints player table with ping + team.', function()
     print(('%-20s %-20s %-6s %-15s'):format('Name','DisplayName','Ping','Team'))
@@ -3898,7 +3657,6 @@ Window:AddCommand('FPS', {}, 'Shows your current FPS once.', function()
     task.delay(1, function() done=true; cn:Disconnect(); N('FPS',frames..' FPS') end)
 end)
 
--- FPS HUD: single tracked connection
 Window:AddCommand('LoopFPS', {}, 'Shows live FPS HUD. ;breakloops to remove.', function(a, s)
     fpsConn=Kill(fpsConn)
     local pg=LocalPlayer.PlayerGui; local old=pg:FindFirstChild('V0idFPS'); if old then old:Destroy() end
@@ -3921,7 +3679,6 @@ Window:AddCommand('NoFPSHud', {}, 'Removes FPS HUD.', function()
     fpsConn=Kill(fpsConn); local v=LocalPlayer.PlayerGui:FindFirstChild('V0idFPS'); if v then v:Destroy() end; N('FPS','HUD OFF.')
 end)
 
--- Speedometer: single tracked connection
 Window:AddCommand('Speedometer', {}, 'Shows live speed HUD. ;breakloops to remove.', function(a, s)
     speedoConn=Kill(speedoConn)
     local pg=LocalPlayer.PlayerGui; local old=pg:FindFirstChild('V0idSpeed'); if old then old:Destroy() end
@@ -3942,10 +3699,6 @@ end)
 Window:AddCommand('NoSpeedometer', {}, 'Removes speedometer HUD.', function()
     speedoConn=Kill(speedoConn); local v=LocalPlayer.PlayerGui:FindFirstChild('V0idSpeed'); if v then v:Destroy() end; N('Speedometer','OFF.')
 end)
-
--- ════════════════════════════════════════
---  UTILITY
--- ════════════════════════════════════════
 
 Window:AddCommand('HelpCmd', {'Keyword'}, 'Searches commands by partial name.', function(a)
     local q=(a[1] or ''):lower(); local matches={}
@@ -3986,16 +3739,10 @@ Window:AddCommand('UnLoopWaypoint', {}, 'Stops LoopWaypoint.', function()
     loopWpConn=Kill(loopWpConn); N('LoopWaypoint','OFF.')
 end)
 
--- ════════════════════════════════════════
---  FINAL COUNT
--- ════════════════════════════════════════
 local _total=0; for _ in pairs(Registry) do _total=_total+1 end
 print('[V0id Extra] Loaded. Grand total: '.._total..' commands.')
 N('V0id Extra', 'Loaded! Grand total: '.._total, 6)
 
--- ============================================================
--- INIT
--- ============================================================
 local _cmdCount = 0
 for _ in pairs(Registry) do _cmdCount = _cmdCount + 1 end
 print('[V0id] All commands registered. Total: '.._cmdCount..'. Prefix: '..prefix)
