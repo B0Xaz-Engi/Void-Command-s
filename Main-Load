@@ -1434,7 +1434,7 @@ Window:AddCommand('Explode', {}, 'Creates an explosion at your position.', funct
 end)
 
 -- FIX: Bang / Jerk — fixed BodyVelocity so it properly idles (not spamming old values)
-Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams their back (CFrame-locked, NO flying).', function(a, s)
+Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams their back (CFrame-locked, smooth stop, NO flying).', function(a, s)
     local t = findPlayer(a[1])
     local r = R(s)
     if not r or not t then return end
@@ -1443,24 +1443,27 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams t
     local tr = char and char:FindFirstChild("HumanoidRootPart")
     if not tr then return end
 
-    -- Optional: Lock humanoid to prevent walk/jump interference
+    -- Lock humanoid once
     local hum = r.Parent:FindFirstChildOfClass("Humanoid")
     if hum then hum.PlatformStand = true end
+
+    -- Network owner once (helps replication)
+    pcall(function() r:SetNetworkOwner(nil) end)
 
     -- Initial snap behind
     local baseDist = 4
     r.CFrame = tr.CFrame * CFrame.new(0, 0, -baseDist)
 
     local sp = tonumber(a[2]) or 8
-    local amp = 1.2  -- ram amplitude (studs closer/farther)
-
+    local amp = 1.2
     local tm = 0
+
     local cn
     cn = RunService.Heartbeat:Connect(function(dt)
         -- Fresh resolves
         char = t.Character
         tr = char and char:FindFirstChild("HumanoidRootPart")
-        r = R(s)  -- re-get in case respawn
+        r = R(s)
         if not tr or not r or not r.Parent then
             cn:Disconnect()
             if hum then hum.PlatformStand = false end
@@ -1470,25 +1473,46 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams t
         -- Goal base: behind target
         local baseCF = tr.CFrame * CFrame.new(0, 0, -baseDist)
 
-        -- Oscillate distance: sin+ = closer (ram into back), sin- = farther (pull back)
+        -- Oscillate distance
         tm = tm + dt * sp
         local oscDist = -baseDist + (math.sin(tm) * amp)
 
-        -- Final position: slightly closer/farther along lookvector
+        -- Final position
         local finalPos = baseCF.Position + (baseCF.LookVector * oscDist)
 
-        -- Set CFrame: position + face same direction as target
+        -- Set CFrame
         r.CFrame = CFrame.lookAt(finalPos, finalPos + baseCF.LookVector)
-
-        -- Optional: Network ownership for smoother client physics
-        pcall(function() r:SetNetworkOwner(nil) end)
     end)
 
-    -- Stop after 15s or make manual toggle
-    task.delay(15, function()
-        if cn.Connected then cn:Disconnect() end
-        if hum then hum.PlatformStand = false end
-        N('Bang', 'Stopped on ' .. t.Name)
+    -- Smooth cleanup: settle for 1s (steady position), zero physics, then unlock
+    task.spawn(function()
+        task.wait(15)  -- main duration
+
+        -- Phase 1: Steady position for 0.5s (no osc, just stick)
+        local settleTm = math.pi  -- sin(pi) = 0, no movement
+        for i = 1, 30 do  -- ~0.5s at 60fps
+            char = t.Character
+            tr = char and char:FindFirstChild("HumanoidRootPart")
+            r = R(s)
+            if not tr or not r then break end
+
+            local baseCF = tr.CFrame * CFrame.new(0, 0, -baseDist)
+            local finalPos = baseCF.Position + (baseCF.LookVector * (-baseDist))  -- exact base, no osc
+            r.CFrame = CFrame.lookAt(finalPos, finalPos + baseCF.LookVector)
+            task.wait()
+        end
+
+        -- Phase 2: Zero physics & unlock
+        r = R(s)
+        if r then
+            r.AssemblyLinearVelocity = Vector3.zero
+            r.AssemblyAngularVelocity = Vector3.zero
+            pcall(function() r:SetNetworkOwner(s) end)  -- back to player
+        end
+        if hum then task.wait(0.1); hum.PlatformStand = false end
+
+        cn:Disconnect()
+        N('Bang', 'Stopped smoothly on ' .. t.Name)
     end)
 
     N('Bang', 'Locked behind & ramming ' .. t.Name .. ' (speed: ' .. sp .. ')')
