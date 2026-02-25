@@ -123,8 +123,10 @@ end
 
 local function execute(msg)
     if type(msg) ~= 'string' or msg == '' then return end
+    -- Trim first char check before doing the expensive match
+    if msg:sub(1,1) ~= prefix:sub(1,1) then return end
     msg = msg:match('^%s*(.-)%s*$')
-    if #msg < #prefix + 1 then return end  -- too short to be a command
+    if #msg < #prefix + 1 then return end
     if msg:sub(1, #prefix) ~= prefix then return end
     local parts = {}
     for w in msg:gmatch('%S+') do parts[#parts+1] = w end
@@ -141,25 +143,30 @@ local function execute(msg)
         end
     end
 end
-
+-- Only execute on chat send, not while typing
 LocalPlayer.Chatted:Connect(execute)
 
 task.spawn(function()
     task.wait(2)
-    local pg = LocalPlayer:WaitForChild('PlayerGui', 10)
-    if not pg then return end
-    -- Cache focused box reference instead of scanning all descendants every keypress
-    local function getFocusedTextBox()
-        return UserInputService:GetFocusedTextBox()
-    end
+    -- Use GetFocusedTextBox() - O(1) instead of scanning all descendants
+    -- Only fires on Enter key, not every keystroke
     UserInputService.InputBegan:Connect(function(inp, gameProcessed)
         if inp.KeyCode ~= Enum.KeyCode.Return and
            inp.KeyCode ~= Enum.KeyCode.KeypadEnter then return end
-        local focused = getFocusedTextBox()
-        if focused then
-            local txt = focused.Text
-            task.defer(function() execute(txt) end)
-        end
+
+        local focused = UserInputService:GetFocusedTextBox()
+        if not focused then return end
+
+        local txt = focused.Text
+        if txt == '' then return end
+
+        -- Prevent double-fire since Chatted will also trigger for the default chatbox
+        local isDefaultChat = focused.Name == 'ChatBar'
+            or focused.Name == 'TextBox'
+            or (focused.Parent and focused.Parent.Name == 'ChatBarParentFrame')
+        if isDefaultChat then return end
+
+        task.defer(function() execute(txt) end)
     end)
 end)
 
