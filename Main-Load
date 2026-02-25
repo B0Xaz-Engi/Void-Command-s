@@ -1434,23 +1434,78 @@ Window:AddCommand('Explode', {}, 'Creates an explosion at your position.', funct
 end)
 
 -- FIX: Bang / Jerk — fixed BodyVelocity so it properly idles (not spamming old values)
-Window:AddCommand('Bang', {'Player','Speed'}, 'Oscillates toward a player from behind.', function(a, s)
-    local t = findPlayer(a[1]); local r = R(s)
+Window:AddCommand('Bang', {'Player','Speed'}, 'Oscillates toward a player from behind and sticks to them.', function(a, s)
+    local t = findPlayer(a[1])
+    local r = R(s)  -- attacker's HumanoidRootPart
     local tr = t and t.Character and t.Character:FindFirstChild('HumanoidRootPart')
     if not r or not tr then return end
-    
-    -- Position BEHIND target (local offset backward by 4 studs to avoid clipping)
-    r.CFrame = tr.CFrame * CFrame.new(0, 0, -1)
-    
+
+    -- Initial snap behind the target (4 studs back, facing forward)
+    r.CFrame = tr.CFrame * CFrame.new(0, 0, -4)
+
     local sp = tonumber(a[2]) or 10
+
+    -- Create AlignPosition & AlignOrientation for sticky following
+    local ap = Instance.new("AlignPosition")
+    ap.Name = "BangAlignPos"
+    ap.Mode = Enum.PositionAlignmentMode.OneAttachment
+    ap.Attachment0 = Instance.new("Attachment", r)
+    ap.MaxForce = 1e6      -- strong force to stick
+    ap.Responsiveness = 200  -- snappy response
+    ap.Parent = r
+
+    local ao = Instance.new("AlignOrientation")
+    ao.Name = "BangAlignOri"
+    ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    ao.Attachment0 = ap.Attachment0  -- same attachment
+    ao.MaxTorque = 1e6
+    ao.Responsiveness = 200
+    ao.Parent = r
+
+    -- BodyVelocity for the oscillating "bang" motion (horizontal push/pull)
     local bv = Instance.new('BodyVelocity')
-    bv.MaxForce = Vector3.new(1e4, 0, 1e4); bv.Velocity = Vector3.zero; bv.Parent = r
-    local tm = 0; local cn
+    bv.MaxForce = Vector3.new(1e5, 0, 1e5)  -- horizontal only
+    bv.Velocity = Vector3.zero
+    bv.Parent = r
+
+    local tm = 0
+    local cn
     cn = RunService.Heartbeat:Connect(function(dt)
+        -- Re-resolve target root every frame (in case respawn/die)
+        tr = t.Character and t.Character:FindFirstChild("HumanoidRootPart")
+        if not tr or not r or not r.Parent then
+            cn:Disconnect()
+            ap:Destroy()
+            ao:Destroy()
+            bv:Destroy()
+            return
+        end
+
+        -- Update goal: always 4 studs behind target's facing direction
+        local goalCFrame = tr.CFrame * CFrame.new(0, 0, -4)
+
+        -- Set AlignPosition goal (position only)
+        ap.Position = goalCFrame.Position
+
+        -- Set AlignOrientation goal (match target's rotation so you face the same way)
+        ao.CFrame = goalCFrame - goalCFrame.Position  -- rotation part
+
+        -- Oscillate forward/backward along look vector (the "bang" ram)
         tm = tm + dt * sp
-        bv.Velocity = r.CFrame.LookVector * math.sin(tm) * sp
+        local osc = math.sin(tm) * sp * 1.5  -- amplitude tweak if needed
+        bv.Velocity = r.CFrame.LookVector * osc
     end)
-    task.delay(5, function() cn:Disconnect(); bv:Destroy() end)
+
+    -- Auto-stop after 8 seconds (longer for stickiness feel), or add toggle later
+    task.delay(8, function()
+        if cn.Connected then cn:Disconnect() end
+        if ap then ap:Destroy() end
+        if ao then ao:Destroy() end
+        if bv then bv:Destroy() end
+        N('Bang', 'Stopped (stuck to ' .. t.Name .. ')')
+    end)
+
+    N('Bang', 'Sticking & oscillating behind ' .. t.Name .. ' (speed: ' .. sp .. ')')
 end)
 
 Window:AddCommand('Jerk', {}, 'Oscillates your character back and forth.', function(a, s)
