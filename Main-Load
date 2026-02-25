@@ -100,8 +100,8 @@ local function findPlayer(name)
         if u:sub(1,#q) == q or d:sub(1,#q) == q then
             if #u < bestScore then bestScore = #u; best = p end
         end
-        if (u:find(q,1,true) or d:find(q,1,true)) and bestScore == math.huge then
-            if #u + 100 < bestScore then bestScore = #u + 100; best = p end
+        if (u:find(q,1,true) or d:find(q,1,true)) and not best then
+            best = p
         end
     end
     return best
@@ -122,10 +122,10 @@ Window.AddCommand = function(self, cmdName, args, desc, callback)
 end
 
 local function execute(msg)
-    if type(msg) ~= 'string' then return end
+    if type(msg) ~= 'string' or msg == '' then return end
     msg = msg:match('^%s*(.-)%s*$')
+    if #msg < #prefix + 1 then return end  -- too short to be a command
     if msg:sub(1, #prefix) ~= prefix then return end
-    msg = msg:sub(#prefix + 1)
     local parts = {}
     for w in msg:gmatch('%S+') do parts[#parts+1] = w end
     if #parts == 0 then return end
