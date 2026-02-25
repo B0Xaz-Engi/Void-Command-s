@@ -1434,7 +1434,7 @@ Window:AddCommand('Explode', {}, 'Creates an explosion at your position.', funct
 end)
 
 -- FIX: Bang / Jerk — fixed BodyVelocity so it properly idles (not spamming old values)
-Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams their back (CFrame-locked, smooth stop, NO flying).', function(a, s)
+Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams their back (CFrame-locked, gradual stop to prevent fling).', function(a, s)
     local t = findPlayer(a[1])
     local r = R(s)
     if not r or not t then return end
@@ -1443,14 +1443,11 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams t
     local tr = char and char:FindFirstChild("HumanoidRootPart")
     if not tr then return end
 
-    -- Lock humanoid once
     local hum = r.Parent:FindFirstChildOfClass("Humanoid")
     if hum then hum.PlatformStand = true end
 
-    -- Network owner once (helps replication)
     pcall(function() r:SetNetworkOwner(nil) end)
 
-    -- Initial snap behind
     local baseDist = 4
     r.CFrame = tr.CFrame * CFrame.new(0, 0, -baseDist)
 
@@ -1460,7 +1457,6 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams t
 
     local cn
     cn = RunService.Heartbeat:Connect(function(dt)
-        -- Fresh resolves
         char = t.Character
         tr = char and char:FindFirstChild("HumanoidRootPart")
         r = R(s)
@@ -1470,49 +1466,56 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams t
             return
         end
 
-        -- Goal base: behind target
         local baseCF = tr.CFrame * CFrame.new(0, 0, -baseDist)
-
-        -- Oscillate distance
         tm = tm + dt * sp
-        local oscDist = -baseDist + (math.sin(tm) * amp)
+        local osc = math.sin(tm) * amp
+        local oscDist = -baseDist + osc
 
-        -- Final position
         local finalPos = baseCF.Position + (baseCF.LookVector * oscDist)
-
-        -- Set CFrame
         r.CFrame = CFrame.lookAt(finalPos, finalPos + baseCF.LookVector)
     end)
 
-    -- Smooth cleanup: settle for 1s (steady position), zero physics, then unlock
+    -- Gradual fade-out over ~1-2 seconds to bleed off any residual velocity smoothly
     task.spawn(function()
         task.wait(15)  -- main duration
 
-        -- Phase 1: Steady position for 0.5s (no osc, just stick)
-        local settleTm = math.pi  -- sin(pi) = 0, no movement
-        for i = 1, 30 do  -- ~0.5s at 60fps
+        -- Fade phase: slowly reduce oscillation amplitude to 0 over 1.5s
+        local fadeDuration = 1.5
+        local fadeStart = tick()
+        while tick() - fadeStart < fadeDuration do
+            local elapsed = tick() - fadeStart
+            local progress = elapsed / fadeDuration
+            local currentAmp = amp * (1 - progress)
+
             char = t.Character
             tr = char and char:FindFirstChild("HumanoidRootPart")
             r = R(s)
             if not tr or not r then break end
 
             local baseCF = tr.CFrame * CFrame.new(0, 0, -baseDist)
-            local finalPos = baseCF.Position + (baseCF.LookVector * (-baseDist))  -- exact base, no osc
+            local oscDist = -baseDist + (math.sin(tm) * currentAmp)  -- tm continues, but amp fades
+            local finalPos = baseCF.Position + (baseCF.LookVector * oscDist)
             r.CFrame = CFrame.lookAt(finalPos, finalPos + baseCF.LookVector)
+
             task.wait()
         end
 
-        -- Phase 2: Zero physics & unlock
+        -- Final settle: exact position, zero velocities
         r = R(s)
         if r then
             r.AssemblyLinearVelocity = Vector3.zero
             r.AssemblyAngularVelocity = Vector3.zero
-            pcall(function() r:SetNetworkOwner(s) end)  -- back to player
         end
-        if hum then task.wait(0.1); hum.PlatformStand = false end
 
-        cn:Disconnect()
-        N('Bang', 'Stopped smoothly on ' .. t.Name)
+        -- Unlock controls gradually
+        if hum then
+            hum.PlatformStand = false
+            -- Optional: tiny delay helps some games
+            task.wait(0.2)
+        end
+
+        if cn.Connected then cn:Disconnect() end
+        N('Bang', 'Stopped smoothly on ' .. t.Name .. ' (no fling)')
     end)
 
     N('Bang', 'Locked behind & ramming ' .. t.Name .. ' (speed: ' .. sp .. ')')
