@@ -1434,11 +1434,14 @@ Window:AddCommand('Explode', {}, 'Creates an explosion at your position.', funct
 end)
 
 -- FIX: Bang / Jerk — fixed BodyVelocity so it properly idles (not spamming old values)
-Window:AddCommand('Bang', {'Player','Speed'}, 'Oscillates toward a player.', function(a, s)
+Window:AddCommand('Bang', {'Player','Speed'}, 'Oscillates toward a player from behind.', function(a, s)
     local t = findPlayer(a[1]); local r = R(s)
     local tr = t and t.Character and t.Character:FindFirstChild('HumanoidRootPart')
     if not r or not tr then return end
-    r.CFrame = tr.CFrame + tr.CFrame.LookVector * 2
+    
+    -- Position BEHIND target (local offset backward by 4 studs to avoid clipping)
+    r.CFrame = tr.CFrame * CFrame.new(0, 0, -4)
+    
     local sp = tonumber(a[2]) or 10
     local bv = Instance.new('BodyVelocity')
     bv.MaxForce = Vector3.new(1e4, 0, 1e4); bv.Velocity = Vector3.zero; bv.Parent = r
