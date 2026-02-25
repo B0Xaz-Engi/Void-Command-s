@@ -1434,7 +1434,7 @@ Window:AddCommand('Explode', {}, 'Creates an explosion at your position.', funct
 end)
 
 -- FIX: Bang / Jerk — fixed BodyVelocity so it properly idles (not spamming old values)
-Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and oscillates (rams) into their back.', function(a, s)
+Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and gently oscillates (rams) into their back without flying away.', function(a, s)
     local t = findPlayer(a[1])
     local r = R(s)  -- attacker's HumanoidRootPart
     if not r or not t then return end
@@ -1443,42 +1443,41 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and oscill
     local tr = char and char:FindFirstChild("HumanoidRootPart")
     if not tr then return end
 
-    -- Initial snap: behind the target, facing the same direction as them
-    local behindOffset = CFrame.new(0, 0, -4)  -- negative Z = behind in local space
+    -- Initial position: behind target, same facing direction
+    local behindOffset = CFrame.new(0, 0, -4)  -- 4 studs back
     r.CFrame = tr.CFrame * behindOffset
 
-    local sp = tonumber(a[2]) or 10
+    local sp = tonumber(a[2]) or 8  -- lower default speed to reduce rocket effect
 
-    -- Create AlignPosition to lock position behind target
+    -- AlignPosition: lock you behind the target
     local ap = Instance.new("AlignPosition")
     ap.Name = "BangAlignPos"
     ap.Mode = Enum.PositionAlignmentMode.OneAttachment
     ap.Attachment0 = Instance.new("Attachment", r)
-    ap.MaxForce = math.huge          -- extremely sticky
-    ap.Responsiveness = 200           -- very snappy tracking
-    ap.RigidityEnabled = true         -- makes it even more rigid/less laggy
+    ap.MaxForce = 250000          -- strong but not infinite (prevents physics glitches)
+    ap.Responsiveness = 50        -- lower = smoother, less jitter/overshoot
+    ap.RigidityEnabled = false    -- false helps prevent explosive flying in many games
     ap.Parent = r
 
-    -- AlignOrientation to match target's rotation (face same way)
+    -- AlignOrientation: match target's rotation
     local ao = Instance.new("AlignOrientation")
     ao.Name = "BangAlignOri"
     ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
     ao.Attachment0 = ap.Attachment0
-    ao.MaxTorque = math.huge
-    ao.Responsiveness = 200
-    ao.RigidityEnabled = true
+    ao.MaxTorque = 150000
+    ao.Responsiveness = 40        -- lower for less spin/rocket
+    ao.RigidityEnabled = false
     ao.Parent = r
 
-    -- BodyVelocity for forward/back oscillation (the "bang/hump" motion)
+    -- BodyVelocity for oscillation - MUCH gentler force
     local bv = Instance.new('BodyVelocity')
-    bv.MaxForce = Vector3.new(math.huge, 0, math.huge)  -- horizontal only
+    bv.MaxForce = Vector3.new(8000, 0, 8000)  -- reduced horizontal force
     bv.Velocity = Vector3.zero
     bv.Parent = r
 
     local tm = 0
     local cn
     cn = RunService.Heartbeat:Connect(function(dt)
-        -- Re-resolve every frame in case of death/respawn/despawn
         char = t.Character
         tr = char and char:FindFirstChild("HumanoidRootPart")
         if not tr or not r or not r.Parent then
@@ -1489,23 +1488,18 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and oscill
             return
         end
 
-        -- Goal: always exactly behind target's current facing direction
         local goalCFrame = tr.CFrame * behindOffset
-
-        -- Update AlignPosition target position
         ap.Position = goalCFrame.Position
+        ao.CFrame = goalCFrame - goalCFrame.Position
 
-        -- Update AlignOrientation to match target's rotation
-        ao.CFrame = goalCFrame - goalCFrame.Position  -- rotation only
-
-        -- Oscillate: push forward (positive) into back, then pull back (negative)
+        -- Oscillation: smaller amplitude & slower push
         tm = tm + dt * sp
-        local osc = math.sin(tm) * (sp * 1.8)   -- amplitude ~18 studs at speed 10; tweak as needed
+        local osc = math.sin(tm) * 6          -- max ~6 studs push/pull (was way higher before)
         bv.Velocity = r.CFrame.LookVector * osc
     end)
 
-    -- Auto-cleanup after 10 seconds (adjust or remove for permanent)
-    task.delay(10, function()
+    -- Cleanup after 12 seconds
+    task.delay(12, function()
         if cn.Connected then cn:Disconnect() end
         if ap then ap:Destroy() end
         if ao then ao:Destroy() end
@@ -1513,7 +1507,7 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and oscill
         N('Bang', 'Stopped on ' .. t.Name)
     end)
 
-    N('Bang', 'Now sticking & ramming behind ' .. t.Name .. ' (speed: ' .. sp .. ')')
+    N('Bang', 'Sticking behind ' .. t.Name .. ' (speed: ' .. sp .. ') - gentle ram mode')
 end)
 Window:AddCommand('Jerk', {}, 'Oscillates your character back and forth.', function(a, s)
     local r = R(s); if not r then return end
