@@ -100,8 +100,8 @@ local function findPlayer(name)
         if u:sub(1,#q) == q or d:sub(1,#q) == q then
             if #u < bestScore then bestScore = #u; best = p end
         end
-        if (u:find(q,1,true) or d:find(q,1,true)) and not best then
-            best = p
+        if (u:find(q,1,true) or d:find(q,1,true)) and bestScore == math.huge then
+            if #u + 100 < bestScore then bestScore = #u + 100; best = p end
         end
     end
     return best
@@ -122,12 +122,10 @@ Window.AddCommand = function(self, cmdName, args, desc, callback)
 end
 
 local function execute(msg)
-    if type(msg) ~= 'string' or msg == '' then return end
-    -- Trim first char check before doing the expensive match
-    if msg:sub(1,1) ~= prefix:sub(1,1) then return end
+    if type(msg) ~= 'string' then return end
     msg = msg:match('^%s*(.-)%s*$')
-    if #msg < #prefix + 1 then return end
     if msg:sub(1, #prefix) ~= prefix then return end
+    msg = msg:sub(#prefix + 1)
     local parts = {}
     for w in msg:gmatch('%S+') do parts[#parts+1] = w end
     if #parts == 0 then return end
@@ -143,39 +141,20 @@ local function execute(msg)
         end
     end
 end
+
 LocalPlayer.Chatted:Connect(execute)
 
--- This ONLY handles non-default-chat textboxes (e.g. custom game chat UIs)
--- The Library's own bar is handled internally by the Library itself
 task.spawn(function()
     task.wait(2)
-    UserInputService.InputBegan:Connect(function(inp, gameProcessed)
+    UserInputService.InputBegan:Connect(function(inp)
         if inp.KeyCode ~= Enum.KeyCode.Return and
            inp.KeyCode ~= Enum.KeyCode.KeypadEnter then return end
-
         local focused = UserInputService:GetFocusedTextBox()
         if not focused then return end
-
         local txt = focused.Text
-        if txt == '' then return end
-
-        -- Skip the default Roblox chat box since Chatted already handles it
-        -- Only skip it, allow everything else including the Library's bar
-        local parent = focused.Parent
-        local isRobloxChat = false
-        local check = focused
-        for _ = 1, 6 do
-            if check and (check.Name == 'ChatBar' 
-                or check.Name == 'ChatWindow'
-                or check.Name == 'DefaultChatSystemChatEvents') then
-                isRobloxChat = true
-                break
-            end
-            check = check and check.Parent
+        if txt ~= '' then
+            task.defer(function() execute(txt) end)
         end
-        if isRobloxChat then return end
-
-        task.defer(function() execute(txt) end)
     end)
 end)
 
