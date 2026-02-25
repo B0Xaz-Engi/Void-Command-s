@@ -143,13 +143,12 @@ local function execute(msg)
         end
     end
 end
--- Only execute on chat send, not while typing
 LocalPlayer.Chatted:Connect(execute)
 
+-- This ONLY handles non-default-chat textboxes (e.g. custom game chat UIs)
+-- The Library's own bar is handled internally by the Library itself
 task.spawn(function()
     task.wait(2)
-    -- Use GetFocusedTextBox() - O(1) instead of scanning all descendants
-    -- Only fires on Enter key, not every keystroke
     UserInputService.InputBegan:Connect(function(inp, gameProcessed)
         if inp.KeyCode ~= Enum.KeyCode.Return and
            inp.KeyCode ~= Enum.KeyCode.KeypadEnter then return end
@@ -160,11 +159,21 @@ task.spawn(function()
         local txt = focused.Text
         if txt == '' then return end
 
-        -- Prevent double-fire since Chatted will also trigger for the default chatbox
-        local isDefaultChat = focused.Name == 'ChatBar'
-            or focused.Name == 'TextBox'
-            or (focused.Parent and focused.Parent.Name == 'ChatBarParentFrame')
-        if isDefaultChat then return end
+        -- Skip the default Roblox chat box since Chatted already handles it
+        -- Only skip it, allow everything else including the Library's bar
+        local parent = focused.Parent
+        local isRobloxChat = false
+        local check = focused
+        for _ = 1, 6 do
+            if check and (check.Name == 'ChatBar' 
+                or check.Name == 'ChatWindow'
+                or check.Name == 'DefaultChatSystemChatEvents') then
+                isRobloxChat = true
+                break
+            end
+            check = check and check.Parent
+        end
+        if isRobloxChat then return end
 
         task.defer(function() execute(txt) end)
     end)
