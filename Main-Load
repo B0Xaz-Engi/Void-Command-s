@@ -779,13 +779,37 @@ Window:AddCommand('UnAntiVoid', {}, 'Disables AntiVoid.', function()
     antiVoidConn = Kill(antiVoidConn); N('AntiVoid', 'OFF.')
 end)
 
-Window:AddCommand('FakeOut', {}, 'TP to void and snap back (anti-detection).', function(a, s)
-    local r = R(s); if not r then return end
-    local orig = r.CFrame
-    r.CFrame = CFrame.new(0, -10000, 0)
-    task.wait(1)
-    local r2 = R(s); if r2 then r2.CFrame = orig end
-    N('FakeOut', 'Done.')
+Window:AddCommand('FakeOut', {}, 'Teleports to void briefly then snaps back (anti-detection attempt)', function(args, speaker)
+    local root = R(speaker)                      -- get current HumanoidRootPart
+    if not root then return end
+    
+    local originalCFrame = root.CFrame           -- store exact position & orientation
+    local originalVelocity = root.AssemblyLinearVelocity  -- some games check velocity
+    
+    -- Void position - deep enough but not absurdly deep
+    root.CFrame = CFrame.new(0, -2000, 0)
+    
+    -- Optional: give tiny downward velocity to look more like falling
+    -- root.AssemblyLinearVelocity = Vector3.new(0, -30, 0)
+    
+    -- Much shorter & randomized wait → harder to pattern-match
+    task.wait(0.08 + math.random(1, 12)/100)     -- ~0.08–0.20 s
+    
+    -- Re-get root because character can be destroyed/recreated
+    local newRoot = R(speaker)
+    if newRoot then
+        -- Preserve network ownership if possible (helps in some games)
+        if newRoot:IsDescendantOf(workspace) then
+            pcall(function()
+                newRoot:SetNetworkOwner(nil)         -- or speaker if you want to force
+            end)
+        end
+        
+        newRoot.CFrame = originalCFrame
+        newRoot.AssemblyLinearVelocity = originalVelocity  -- restore old velocity
+    end
+    
+    N('FakeOut', 'Done (void → snap back)')
 end)
 
 Window:AddCommand('TpWalk', {'Studs'}, 'Teleport-steps in move direction (speed hack bypass).', function(a, s)
