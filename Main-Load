@@ -1434,81 +1434,66 @@ Window:AddCommand('Explode', {}, 'Creates an explosion at your position.', funct
 end)
 
 -- FIX: Bang / Jerk — fixed BodyVelocity so it properly idles (not spamming old values)
-Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and gently oscillates (rams) into their back without flying away.', function(a, s)
+Window:AddCommand('Bang', {'Player','Speed'}, 'Sticks behind a player and rams their back (CFrame-locked, NO flying).', function(a, s)
     local t = findPlayer(a[1])
-    local r = R(s)  -- attacker's HumanoidRootPart
+    local r = R(s)
     if not r or not t then return end
 
     local char = t.Character
     local tr = char and char:FindFirstChild("HumanoidRootPart")
     if not tr then return end
 
-    -- Initial position: behind target, same facing direction
-    local behindOffset = CFrame.new(0, 0, -4)  -- 4 studs back
-    r.CFrame = tr.CFrame * behindOffset
+    -- Optional: Lock humanoid to prevent walk/jump interference
+    local hum = r.Parent:FindFirstChildOfClass("Humanoid")
+    if hum then hum.PlatformStand = true end
 
-    local sp = tonumber(a[2]) or 8  -- lower default speed to reduce rocket effect
+    -- Initial snap behind
+    local baseDist = 4
+    r.CFrame = tr.CFrame * CFrame.new(0, 0, -baseDist)
 
-    -- AlignPosition: lock you behind the target
-    local ap = Instance.new("AlignPosition")
-    ap.Name = "BangAlignPos"
-    ap.Mode = Enum.PositionAlignmentMode.OneAttachment
-    ap.Attachment0 = Instance.new("Attachment", r)
-    ap.MaxForce = 250000          -- strong but not infinite (prevents physics glitches)
-    ap.Responsiveness = 50        -- lower = smoother, less jitter/overshoot
-    ap.RigidityEnabled = false    -- false helps prevent explosive flying in many games
-    ap.Parent = r
-
-    -- AlignOrientation: match target's rotation
-    local ao = Instance.new("AlignOrientation")
-    ao.Name = "BangAlignOri"
-    ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
-    ao.Attachment0 = ap.Attachment0
-    ao.MaxTorque = 150000
-    ao.Responsiveness = 40        -- lower for less spin/rocket
-    ao.RigidityEnabled = false
-    ao.Parent = r
-
-    -- BodyVelocity for oscillation - MUCH gentler force
-    local bv = Instance.new('BodyVelocity')
-    bv.MaxForce = Vector3.new(8000, 0, 8000)  -- reduced horizontal force
-    bv.Velocity = Vector3.zero
-    bv.Parent = r
+    local sp = tonumber(a[2]) or 8
+    local amp = 1.2  -- ram amplitude (studs closer/farther)
 
     local tm = 0
     local cn
     cn = RunService.Heartbeat:Connect(function(dt)
+        -- Fresh resolves
         char = t.Character
         tr = char and char:FindFirstChild("HumanoidRootPart")
+        r = R(s)  -- re-get in case respawn
         if not tr or not r or not r.Parent then
             cn:Disconnect()
-            if ap then ap:Destroy() end
-            if ao then ao:Destroy() end
-            if bv then bv:Destroy() end
+            if hum then hum.PlatformStand = false end
             return
         end
 
-        local goalCFrame = tr.CFrame * behindOffset
-        ap.Position = goalCFrame.Position
-        ao.CFrame = goalCFrame - goalCFrame.Position
+        -- Goal base: behind target
+        local baseCF = tr.CFrame * CFrame.new(0, 0, -baseDist)
 
-        -- Oscillation: smaller amplitude & slower push
+        -- Oscillate distance: sin+ = closer (ram into back), sin- = farther (pull back)
         tm = tm + dt * sp
-        local osc = math.sin(tm) * 6          -- max ~6 studs push/pull (was way higher before)
-        bv.Velocity = r.CFrame.LookVector * osc
+        local oscDist = -baseDist + (math.sin(tm) * amp)
+
+        -- Final position: slightly closer/farther along lookvector
+        local finalPos = baseCF.Position + (baseCF.LookVector * oscDist)
+
+        -- Set CFrame: position + face same direction as target
+        r.CFrame = CFrame.lookAt(finalPos, finalPos + baseCF.LookVector)
+
+        -- Optional: Network ownership for smoother client physics
+        pcall(function() r:SetNetworkOwner(nil) end)
     end)
 
-    -- Cleanup after 12 seconds
-    task.delay(12, function()
+    -- Stop after 15s or make manual toggle
+    task.delay(15, function()
         if cn.Connected then cn:Disconnect() end
-        if ap then ap:Destroy() end
-        if ao then ao:Destroy() end
-        if bv then bv:Destroy() end
+        if hum then hum.PlatformStand = false end
         N('Bang', 'Stopped on ' .. t.Name)
     end)
 
-    N('Bang', 'Sticking behind ' .. t.Name .. ' (speed: ' .. sp .. ') - gentle ram mode')
+    N('Bang', 'Locked behind & ramming ' .. t.Name .. ' (speed: ' .. sp .. ')')
 end)
+
 Window:AddCommand('Jerk', {}, 'Oscillates your character back and forth.', function(a, s)
     local r = R(s); if not r then return end
     local bv = Instance.new('BodyVelocity')
