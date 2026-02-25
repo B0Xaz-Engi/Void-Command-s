@@ -1440,7 +1440,7 @@ Window:AddCommand('Bang', {'Player','Speed'}, 'Oscillates toward a player from b
     if not r or not tr then return end
     
     -- Position BEHIND target (local offset backward by 4 studs to avoid clipping)
-    r.CFrame = tr.CFrame * CFrame.new(0, 0, -4)
+    r.CFrame = tr.CFrame * CFrame.new(0, 0, 2)
     
     local sp = tonumber(a[2]) or 10
     local bv = Instance.new('BodyVelocity')
